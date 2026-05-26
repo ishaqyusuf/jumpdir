@@ -1,16 +1,22 @@
 # termcode
 
-`termcode` is a small macOS CLI for finding local JavaScript projects, opening them, and running package scripts without remembering where every repo lives.
+`termcode` is a small macOS CLI for finding local repos, opening them, and running package scripts without remembering where every repo lives.
+
+## Why termcode?
+
+AI has changed how I work on code. I spend less time manually navigating an editor and more time running local projects from a multi-tabbed terminal.
+
+`termcode` exists so I do not have to remember where every repo lives. Configure your project folders once, then list repos, open them, or run package scripts by name.
 
 ## Usage
 
 ```sh
-termcode set ~/Documents/code ~/Documents/code/_kitchen_sink ~/Documents/code/_turbo ~/Documents/code/micro-startups
+termcode set ~/Documents/code ~/Desktop/projects
 termcode ls
-termcode plotkeys dev
-termcode open plotkeys
-termcode . plotkeys
-termcode rename plot-keys plotkeys
+termcode my-app dev
+termcode open my-app
+termcode . my-app
+termcode rename my-long-repo-name my-app
 ```
 
 `termcode set` saves the roots to `${TERMCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/termcode}/roots`.
