@@ -2,6 +2,8 @@
 
 `termcode` is a small macOS CLI for finding local repos, opening them, and running package scripts without remembering where every repo lives.
 
+![termcode terminal demo](assets/termcode-terminal.png)
+
 ## Why termcode?
 
 AI has changed how I work on code. I spend less time manually navigating an editor and more time running local projects from a multi-tabbed terminal.
