@@ -9,6 +9,19 @@ INSTALL_DIR="${TERMCODE_INSTALL_DIR:-$HOME/.local/bin}"
 INSTALL_BIN="$INSTALL_DIR/termcode"
 TMP_FILE=""
 
+permission_error() {
+  cat >&2 <<EOF
+Cannot write to $INSTALL_DIR.
+
+Use the default user install:
+  curl -fsSL https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/install.sh | bash
+
+Or rerun with sudo for this install directory:
+  curl -fsSL https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/install.sh | sudo env TERMCODE_INSTALL_DIR="$INSTALL_DIR" bash
+EOF
+  exit 1
+}
+
 cleanup() {
   if [ -n "$TMP_FILE" ] && [ -f "$TMP_FILE" ]; then
     rm -f "$TMP_FILE"
@@ -17,11 +30,26 @@ cleanup() {
 trap cleanup EXIT
 
 local_source_bin() {
-  local source_dir
-  source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P || true)"
+  local source_path source_dir
+  source_path="${BASH_SOURCE[0]:-}"
+  [ -n "$source_path" ] || return 0
+
+  source_dir="$(cd "$(dirname "$source_path")" 2>/dev/null && pwd -P || true)"
   if [ -n "$source_dir" ] && [ -f "$source_dir/bin/termcode" ]; then
     printf '%s\n' "$source_dir/bin/termcode"
   fi
+}
+
+ensure_install_dir() {
+  local parent
+  if [ -d "$INSTALL_DIR" ]; then
+    [ -w "$INSTALL_DIR" ] || permission_error
+    return 0
+  fi
+
+  parent="$(dirname "$INSTALL_DIR")"
+  [ -w "$parent" ] || permission_error
+  install -d "$INSTALL_DIR"
 }
 
 download_source_bin() {
@@ -42,7 +70,7 @@ if [ -z "$SOURCE_BIN" ]; then
   SOURCE_BIN="$(download_source_bin)"
 fi
 
-install -d "$INSTALL_DIR"
+ensure_install_dir
 install -m 0755 "$SOURCE_BIN" "$INSTALL_BIN"
 
 echo "Installed termcode to $INSTALL_BIN"

@@ -136,4 +136,20 @@ assert_contains "$output" "Downloading termcode from file://$TERMCODE"
 assert_contains "$output" "Installed termcode to $TMP_DIR/install-remote/termcode"
 "$TMP_DIR/install-remote/termcode" --version >/dev/null
 
+output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/install-piped" TERMCODE_SOURCE_URL="file://$TERMCODE" bash < "$ROOT_DIR/install.sh")"
+assert_contains "$output" "Downloading termcode from file://$TERMCODE"
+assert_contains "$output" "Installed termcode to $TMP_DIR/install-piped/termcode"
+"$TMP_DIR/install-piped/termcode" --version >/dev/null
+
+mkdir -p "$TMP_DIR/readonly"
+chmod 555 "$TMP_DIR/readonly"
+set +e
+readonly_output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/readonly" TERMCODE_SOURCE_URL="file://$TERMCODE" bash < "$ROOT_DIR/install.sh" 2>&1)"
+readonly_status="$?"
+set -e
+chmod 755 "$TMP_DIR/readonly"
+[ "$readonly_status" -eq 1 ] || fail "expected readonly install to exit 1, got $readonly_status"
+assert_contains "$readonly_output" "Cannot write to $TMP_DIR/readonly."
+assert_contains "$readonly_output" "sudo env TERMCODE_INSTALL_DIR=\"$TMP_DIR/readonly\" bash"
+
 printf 'ok - termcode roadmap behavior\n'

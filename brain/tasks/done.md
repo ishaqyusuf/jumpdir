@@ -23,3 +23,10 @@ Track completed tasks.
 - Related Feature: Termcode CLI
 - Status: Done
 - Created Date: 2026-05-26
+
+### Document Installer Updates
+- Priority: Medium
+- Description: Documented updates as rerunning the installer, and fixed system directory install guidance to use `sudo env TERMCODE_INSTALL_DIR=... bash`.
+- Related Feature: Termcode CLI
+- Status: Done
+- Created Date: 2026-05-26

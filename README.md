@@ -37,7 +37,23 @@ By default, the installer puts `termcode` at:
 To choose another install location:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | TERMCODE_INSTALL_DIR=/usr/local/bin bash
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | sudo env TERMCODE_INSTALL_DIR=/usr/local/bin bash
+```
+
+Use `sudo` only for system-owned directories like `/usr/local/bin`.
+
+## Update
+
+Rerun the installer to update `termcode`. It overwrites the existing binary with the latest version from `main`.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | bash
+```
+
+If you installed to `/usr/local/bin`, update with the same install directory:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | sudo env TERMCODE_INSTALL_DIR=/usr/local/bin bash
 ```
 
 ## Install From Source
