@@ -9,6 +9,6 @@ Document runtime and tooling choices.
 ## Template
 - Runtime: POSIX-ish shell with macOS Bash compatibility.
 - Platform: macOS first.
-- Installer: curl/source installer.
+- Installer: curl/source installer via `install.sh`.
 - Future distribution: Homebrew formula.
 - Tests: shell tests with temporary directories.

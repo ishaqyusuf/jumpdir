@@ -126,4 +126,14 @@ assert_contains "$duplicate_output" "duplicate project name \"alpha\""
 assert_contains "$duplicate_output" "$TMP_DIR/root-a/alpha"
 assert_contains "$duplicate_output" "$TMP_DIR/root-b/alpha"
 
+output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/install-local" "$ROOT_DIR/install.sh")"
+assert_contains "$output" "Installed termcode to $TMP_DIR/install-local/termcode"
+"$TMP_DIR/install-local/termcode" --version >/dev/null
+
+cp "$ROOT_DIR/install.sh" "$TMP_DIR/remote-install.sh"
+output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/install-remote" TERMCODE_SOURCE_URL="file://$TERMCODE" bash "$TMP_DIR/remote-install.sh")"
+assert_contains "$output" "Downloading termcode from file://$TERMCODE"
+assert_contains "$output" "Installed termcode to $TMP_DIR/install-remote/termcode"
+"$TMP_DIR/install-remote/termcode" --version >/dev/null
+
 printf 'ok - termcode roadmap behavior\n'

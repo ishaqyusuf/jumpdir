@@ -16,3 +16,10 @@ Track completed tasks.
 - Related Feature: Termcode CLI
 - Status: Done
 - Created Date: 2026-05-26
+
+### Add Curl Installer
+- Priority: High
+- Description: Updated `install.sh` so it works from a local clone or from `curl | bash`, with configurable repo owner, repo name, ref, source URL, and install directory.
+- Related Feature: Termcode CLI
+- Status: Done
+- Created Date: 2026-05-26

@@ -22,15 +22,13 @@ termcode rename my-long-repo-name my-app
 `termcode set` saves the roots to `${TERMCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/termcode}/roots`.
 Aliases created by `termcode rename` are saved to `aliases` in the same directory.
 
-## Install From Source
+## Install
 
 ```sh
-git clone https://github.com/your-name/termcode.git
-cd termcode
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | bash
 ```
 
-By default, the installer copies `bin/termcode` to:
+By default, the installer puts `termcode` at:
 
 ```sh
 ~/.local/bin/termcode
@@ -39,8 +37,30 @@ By default, the installer copies `bin/termcode` to:
 To choose another install location:
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | TERMCODE_INSTALL_DIR=/usr/local/bin bash
+```
+
+## Install From Source
+
+```sh
+git clone https://github.com/ishaqyusuf/termcode.git
+cd termcode
+./install.sh
+```
+
+To install from a local clone into another directory:
+
+```sh
 TERMCODE_INSTALL_DIR=/usr/local/bin ./install.sh
 ```
+
+To install from another branch or tag with curl:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | TERMCODE_REF=v0.1.0 bash
+```
+
+For forks, pass `TERMCODE_REPO_OWNER` and `TERMCODE_REPO_NAME` to the `bash` command.
 
 ## Homebrew Preparation
 
