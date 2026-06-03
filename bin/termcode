@@ -1,24 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 CONFIG_DIR="${TERMCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/termcode}"
 ROOTS_FILE="$CONFIG_DIR/roots"
 ALIASES_FILE="$CONFIG_DIR/aliases"
+RUNNER_FILE="$CONFIG_DIR/runner"
+ONBOARDED_FILE="$CONFIG_DIR/onboarded"
 
 usage() {
   cat <<EOF
-termcode - jump into and run scripts for local projects
+termcode - jump into and run scripts for local repos
 
 Usage:
-  termcode set <paths...>                 Save project search roots
-  termcode ls                             List discovered projects
-  termcode rename <name-or-path> <alias>  Create a callable alias
-  termcode open <project>                 Open project folder in Finder
-  termcode . <project>                    Open project folder in VS Code
-  termcode <project> <script> [args...]   Run a package script in a project
-  termcode --help                         Show help
-  termcode --version                      Show version
+  termcode                              Start first-run onboarding
+  termcode set <paths...>              Save project search roots
+  termcode ls                          List discovered projects
+  termcode runner get                  Show preferred runner
+  termcode runner set <runner|none>    Set preferred runner
+  termcode runner clear                Clear preferred runner
+  termcode rename <name-or-path> <as>  Create a callable alias
+  termcode path <project>              Print project path
+  termcode init zsh                    Print zsh jump integration
+  termcode open <project>              Open project folder in Finder
+  termcode . <project>                 Open project folder in VS Code
+  termcode <project>                   Print project path
+  termcode <project> <script> [args...]                 Run with preferred runner
+  termcode <project> <runner> run <script> [args...]    Run with explicit runner
+  termcode --help                      Show help
+  termcode --version                   Show version
+
+Preferred runners:
+  bun, pnpm, npm, yarn, none
 
 Config:
   $CONFIG_DIR
@@ -76,27 +89,133 @@ validate_alias() {
   esac
 }
 
+is_runner() {
+  case "$1" in
+    bun|pnpm|npm|yarn) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_runner_preference() {
+  case "$1" in
+    bun|pnpm|npm|yarn|none) ;;
+    *) die "preferred runner must be bun, pnpm, npm, yarn, or none" ;;
+  esac
+}
+
+get_runner_preference() {
+  local runner
+  if [ ! -f "$RUNNER_FILE" ]; then
+    printf 'none\n'
+    return 0
+  fi
+
+  runner="$(sed -n '1p' "$RUNNER_FILE")"
+  case "$runner" in
+    bun|pnpm|npm|yarn) printf '%s\n' "$runner" ;;
+    *) printf 'none\n' ;;
+  esac
+}
+
+set_runner_preference() {
+  [ "$#" -eq 1 ] || usage_error "runner set requires bun, pnpm, npm, yarn, or none"
+  ensure_config_dir
+  validate_runner_preference "$1"
+  printf '%s\n' "$1" > "$RUNNER_FILE"
+  if [ "$1" = "none" ]; then
+    printf 'Preferred runner cleared.\n'
+  else
+    printf 'Preferred runner set to %s run.\n' "$1"
+  fi
+}
+
+runner_command() {
+  local subcommand
+  subcommand="${1:-}"
+
+  case "$subcommand" in
+    get)
+      shift
+      [ "$#" -eq 0 ] || usage_error "runner get does not accept arguments"
+      printf '%s\n' "$(get_runner_preference)"
+      ;;
+    set)
+      shift
+      set_runner_preference "$@"
+      ;;
+    clear)
+      shift
+      [ "$#" -eq 0 ] || usage_error "runner clear does not accept arguments"
+      set_runner_preference none
+      ;;
+    *)
+      usage_error "runner requires get, set, or clear"
+      ;;
+  esac
+}
+
+has_completed_onboarding() {
+  [ -f "$ONBOARDED_FILE" ]
+}
+
+has_configured_roots() {
+  [ -f "$ROOTS_FILE" ] && grep -q '[^[:space:]]' "$ROOTS_FILE"
+}
+
+should_start_onboarding() {
+  if has_completed_onboarding; then
+    return 1
+  fi
+
+  if [ ! -d "$CONFIG_DIR" ]; then
+    return 0
+  fi
+
+  if ! has_configured_roots; then
+    return 0
+  fi
+
+  return 1
+}
+
+mark_onboarding_complete() {
+  ensure_config_dir
+  date '+%Y-%m-%dT%H:%M:%S%z' > "$ONBOARDED_FILE"
+}
+
 set_roots() {
   [ "$#" -gt 0 ] || usage_error "set requires at least one path"
   ensure_config_dir
 
-  local tmp root canonical already
+  local tmp root canonical count
   tmp="$ROOTS_FILE.tmp.$$"
   : > "$tmp"
-
   for root in "$@"; do
     canonical="$(canonical_dir "$root")"
-    already=0
-    if grep -Fxq "$canonical" "$tmp"; then
-      already=1
-    fi
-    if [ "$already" -eq 0 ]; then
+    if ! grep -Fxq "$canonical" "$tmp"; then
       printf '%s\n' "$canonical" >> "$tmp"
     fi
   done
 
   mv "$tmp" "$ROOTS_FILE"
-  printf 'Saved %s project root%s.\n' "$#" "$(if [ "$#" -eq 1 ]; then printf ''; else printf 's'; fi)"
+  count="$(wc -l < "$ROOTS_FILE" | tr -d ' ')"
+  printf 'Saved %s project root%s.\n' "$count" "$(if [ "$count" -eq 1 ]; then printf ''; else printf 's'; fi)"
+}
+
+add_roots() {
+  [ "$#" -gt 0 ] || return 0
+  ensure_config_dir
+
+  local tmp root canonical
+  tmp="$ROOTS_FILE.tmp.$$"
+  cat "$ROOTS_FILE" > "$tmp"
+  for root in "$@"; do
+    canonical="$(canonical_dir "$root")"
+    if ! grep -Fxq "$canonical" "$tmp"; then
+      printf '%s\n' "$canonical" >> "$tmp"
+    fi
+  done
+  mv "$tmp" "$ROOTS_FILE"
 }
 
 iter_projects() {
@@ -133,32 +252,41 @@ iter_callables() {
   iter_aliases
 }
 
+duplicate_report() {
+  iter_callables | awk -F '\t' '
+    {
+      key = $1
+      path = $2
+      if (seen[key, path] == 0) {
+        seen[key, path] = 1
+        count[key] += 1
+        paths[key] = paths[key] sprintf("  %s\n", path)
+      }
+    }
+    END {
+      duplicates = 0
+      for (key in count) {
+        if (count[key] > 1) {
+          duplicates += 1
+          printf "termcode: duplicate project name \"%s\":\n%s", key, paths[key]
+        }
+      }
+      if (duplicates == 0) {
+        exit 0
+      }
+      exit 1
+    }
+  '
+}
+
 detect_duplicates() {
-  local duplicate_count
-  duplicate_count="$(
-    iter_callables | awk -F '\t' '
-      {
-        key = $1
-        path = $2
-        if (seen[key, path] == 0) {
-          seen[key, path] = 1
-          count[key] += 1
-          paths[key] = paths[key] sprintf("  %s\n", path)
-        }
-      }
-      END {
-        duplicates = 0
-        for (key in count) {
-          if (count[key] > 1) {
-            duplicates += 1
-            printf "termcode: duplicate project name \"%s\":\n%s", key, paths[key] > "/dev/stderr"
-          }
-        }
-        print duplicates
-      }
-    '
-  )"
-  [ "$duplicate_count" -eq 0 ]
+  local report
+  if report="$(duplicate_report)"; then
+    return 0
+  fi
+
+  printf '%s\n' "$report" >&2
+  return 1
 }
 
 list_projects() {
@@ -169,6 +297,25 @@ list_projects() {
   fi
 
   iter_callables | sort -f -u -t "$(printf '\t')" -k1,1 | awk -F '\t' '{ printf "%-24s %s\n", $1, $2 }'
+}
+
+project_names() {
+  iter_callables | sort -f -u -t "$(printf '\t')" -k1,1 | awk -F '\t' '{ print $1 }'
+}
+
+print_project_summary() {
+  local count report
+  count="$(project_names | wc -l | tr -d ' ')"
+  printf '\nFound %s project%s:\n' "$count" "$(if [ "$count" -eq 1 ]; then printf ''; else printf 's'; fi)"
+  if [ "$count" -gt 0 ]; then
+    project_names | sed 's/^/  /'
+  fi
+
+  if ! report="$(duplicate_report)"; then
+    printf '\nSome project names are duplicated.\n'
+    printf '%s\n' "$report"
+    printf 'Use `termcode rename <name-or-path> <alias>` after setup to disambiguate.\n'
+  fi
 }
 
 resolve_path_input() {
@@ -276,35 +423,38 @@ code_project() {
   fi
 }
 
-detect_runner() {
-  local target
-  target="$1"
-
-  if [ -f "$target/bun.lockb" ] || [ -f "$target/bun.lock" ]; then
-    printf 'bun\n'
-  elif [ -f "$target/pnpm-lock.yaml" ]; then
-    printf 'pnpm\n'
-  elif [ -f "$target/yarn.lock" ]; then
-    printf 'yarn\n'
-  elif [ -f "$target/package-lock.json" ] || [ -f "$target/npm-shrinkwrap.json" ]; then
-    printf 'npm\n'
-  else
-    printf 'npm\n'
-  fi
+path_project() {
+  [ "$#" -eq 1 ] || usage_error "path requires a project"
+  resolve_project "$1"
 }
 
-run_script() {
-  [ "$#" -ge 2 ] || usage_error "script execution requires a project and script"
-
-  local project script target runner
+missing_runner_message() {
+  local project script
   project="$1"
   script="$2"
-  shift 2
+  cat >&2 <<EOF
+termcode: no preferred runner is set.
 
-  target="$(resolve_project "$project")"
-  runner="$(detect_runner "$target")"
+Choose one:
+  termcode runner set bun
+  termcode runner set pnpm
+  termcode runner set npm
+  termcode runner set yarn
 
-  printf 'Running %s via %s in %s\n' "$script" "$runner" "$target" >&2
+Or provide one for this command:
+  termcode $project bun run $script
+EOF
+  exit 64
+}
+
+run_with_runner() {
+  local target runner script
+  target="$1"
+  runner="$2"
+  script="$3"
+  shift 3
+
+  printf 'Running %s via %s run in %s\n' "$script" "$runner" "$target" >&2
   if [ "$#" -gt 0 ]; then
     (cd "$target" && command "$runner" run "$script" -- "$@")
   else
@@ -312,9 +462,172 @@ run_script() {
   fi
 }
 
+run_project_command() {
+  [ "$#" -ge 1 ] || usage_error "project command requires a project"
+
+  local project target runner script
+  project="$1"
+  target="$(resolve_project "$project")"
+
+  if [ "$#" -eq 1 ]; then
+    printf '%s\n' "$target"
+    return 0
+  fi
+
+  if [ "$#" -ge 4 ] && is_runner "$2" && [ "$3" = "run" ]; then
+    runner="$2"
+    script="$4"
+    shift 4
+    run_with_runner "$target" "$runner" "$script" "$@"
+    return 0
+  fi
+
+  script="$2"
+  shift 2
+  runner="$(get_runner_preference)"
+  if [ "$runner" = "none" ]; then
+    missing_runner_message "$project" "$script"
+  fi
+
+  run_with_runner "$target" "$runner" "$script" "$@"
+}
+
+print_zsh_init() {
+  cat <<'EOF'
+termcode() {
+  case "${1:-}" in
+    ""|-h|--help|-v|--version|set|ls|runner|rename|path|init|open|.)
+      command termcode "$@"
+      ;;
+    *)
+      if [ "$#" -eq 1 ]; then
+        local __termcode_path
+        __termcode_path="$(command termcode path "$1")" || return
+        cd "$__termcode_path" || return
+      else
+        command termcode "$@"
+      fi
+      ;;
+  esac
+}
+EOF
+}
+
+init_command() {
+  local shell_name
+  shell_name="${1:-}"
+  case "$shell_name" in
+    zsh)
+      shift
+      [ "$#" -eq 0 ] || usage_error "init zsh does not accept extra arguments"
+      print_zsh_init
+      ;;
+    *)
+      usage_error "init currently supports zsh"
+      ;;
+  esac
+}
+
+prompt_runner_choice() {
+  local choice runner
+  while true; do
+    cat <<'EOF'
+Step 1: Choose your preferred runner
+  1. bun run
+  2. pnpm run
+  3. npm run
+  4. yarn run
+  5. none
+
+Enter choice [1-5]:
+EOF
+    IFS= read -r choice || exit 1
+    case "$choice" in
+      1|bun|bun\ run) runner="bun" ;;
+      2|pnpm|pnpm\ run) runner="pnpm" ;;
+      3|npm|npm\ run) runner="npm" ;;
+      4|yarn|yarn\ run) runner="yarn" ;;
+      5|none|"") runner="none" ;;
+      *)
+        printf 'Please choose 1, 2, 3, 4, or 5.\n\n'
+        continue
+        ;;
+    esac
+    set_runner_preference "$runner"
+    printf '\n'
+    break
+  done
+}
+
+prompt_project_directories() {
+  local line choice
+  while true; do
+    cat <<'EOF'
+Step 2: Add project directories
+  Example: ~/Documents/code ~/Desktop/projects
+
+Enter one or more directories:
+EOF
+    IFS= read -r line || exit 1
+    if [ -z "$line" ]; then
+      printf 'Please enter at least one directory.\n\n'
+      continue
+    fi
+
+    # Intentional shell word splitting so users can paste multiple paths.
+    # Paths containing spaces can be added later with `termcode set`.
+    # shellcheck disable=SC2086
+    add_roots $line
+    print_project_summary
+
+    cat <<'EOF'
+
+What next?
+  1. Add another directory
+  2. Proceed
+
+Enter choice [1-2]:
+EOF
+    IFS= read -r choice || exit 1
+    case "$choice" in
+      1) printf '\n'; continue ;;
+      2|"") break ;;
+      *) printf 'Proceeding.\n'; break ;;
+    esac
+  done
+}
+
+run_onboarding() {
+  ensure_config_dir
+  cat <<'EOF'
+Welcome to termcode.
+
+This setup will choose your preferred runner and add the folders where your repos live.
+
+EOF
+  prompt_runner_choice
+  prompt_project_directories
+  mark_onboarding_complete
+  cat <<'EOF'
+
+Setup complete.
+Try:
+  termcode ls
+  termcode <project>
+  termcode <project> <script>
+EOF
+}
+
 main() {
   case "${1:-}" in
-    -h|--help|"")
+    "")
+      if should_start_onboarding; then
+        run_onboarding
+      else
+        usage
+      fi
+      ;;
+    -h|--help)
       usage
       ;;
     -v|--version)
@@ -329,9 +642,21 @@ main() {
       [ "$#" -eq 0 ] || usage_error "ls does not accept arguments"
       list_projects
       ;;
+    runner)
+      shift
+      runner_command "$@"
+      ;;
     rename)
       shift
       rename_project "$@"
+      ;;
+    path)
+      shift
+      path_project "$@"
+      ;;
+    init)
+      shift
+      init_command "$@"
       ;;
     open)
       shift
@@ -342,7 +667,7 @@ main() {
       code_project "$@"
       ;;
     *)
-      run_script "$@"
+      run_project_command "$@"
       ;;
   esac
 }

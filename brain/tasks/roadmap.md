@@ -18,3 +18,4 @@ Track the implementation sequence.
 8. Done: Implement script execution and runner detection.
 9. Done: Add test harness.
 10. Done: Polish installer and release docs.
+11. Done: Implement v0.2 onboarding, Preferred Runner, explicit runner override, path command, and zsh jump integration.

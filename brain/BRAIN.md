@@ -9,10 +9,10 @@ Central entrypoint for project context, decisions, tasks, and collaboration rule
 - Keep entries concise and current.
 
 ## Project Snapshot
-- Product: `termcode`, a macOS CLI for discovering local JavaScript projects and running scripts quickly.
+- Product: `termcode`, a macOS CLI for discovering local repos, jumping to project paths, and running scripts quickly.
 - Distribution: curl installer first, Homebrew later.
 - Runtime: portable shell script.
-- Current phase: repository scaffold and Brain initialization.
+- Current phase: v0.2 onboarding, Preferred Runner, and jump workflow implemented.
 
 ## Important Links
 - `SYSTEM_OVERVIEW.md`

@@ -18,6 +18,13 @@ fail() {
   exit 1
 }
 
+assert_eq() {
+  local actual expected
+  actual="$1"
+  expected="$2"
+  [ "$actual" = "$expected" ] || fail "expected: $expected"$'\n'"actual: $actual"
+}
+
 assert_contains() {
   local haystack needle
   haystack="$1"
@@ -63,7 +70,10 @@ STUB
   chmod +x "$TMP_DIR/stubs/$name"
 }
 
-export TERMCODE_CONFIG_DIR="$TMP_DIR/config"
+run_termcode() {
+  TERMCODE_CONFIG_DIR="$TEST_CONFIG_DIR" "$TERMCODE" "$@"
+}
+
 export TERMCODE_TEST_LOG="$TMP_DIR/commands.log"
 mkdir -p "$TMP_DIR/root-a" "$TMP_DIR/root-b" "$TMP_DIR/stubs"
 : > "$TERMCODE_TEST_LOG"
@@ -81,44 +91,107 @@ make_project "$TMP_DIR/root-a/beta"
 make_project "$TMP_DIR/root-b/gamma"
 mkdir -p "$TMP_DIR/root-a/not-a-project"
 
-output="$("$TERMCODE" set "$TMP_DIR/root-a" "$TMP_DIR/root-b")"
-assert_contains "$output" "Saved 2 project roots."
-assert_file_contains "$TERMCODE_CONFIG_DIR/roots" "$TMP_DIR/root-a"
-assert_file_contains "$TERMCODE_CONFIG_DIR/roots" "$TMP_DIR/root-b"
+output="$(TERMCODE_CONFIG_DIR="$TMP_DIR/help-config" "$TERMCODE" --help)"
+assert_contains "$output" "termcode - jump into and run scripts for local repos"
+assert_contains "$output" "termcode runner set <runner|none>"
+assert_not_contains "$output" "Welcome to termcode."
 
-output="$("$TERMCODE" ls)"
+TEST_CONFIG_DIR="$TMP_DIR/config"
+output="$(
+  printf '2\n%s\n1\n%s\n2\n' "$TMP_DIR/root-a" "$TMP_DIR/root-b" |
+    TERMCODE_CONFIG_DIR="$TEST_CONFIG_DIR" "$TERMCODE"
+)"
+assert_contains "$output" "Welcome to termcode."
+assert_contains "$output" "Step 1: Choose your preferred runner"
+assert_contains "$output" "Preferred runner set to pnpm run."
+assert_contains "$output" "Step 2: Add project directories"
+assert_contains "$output" "Found 2 projects:"
+assert_contains "$output" "Found 3 projects:"
+assert_contains "$output" "Setup complete."
+assert_file_contains "$TEST_CONFIG_DIR/runner" "pnpm"
+assert_file_contains "$TEST_CONFIG_DIR/roots" "$TMP_DIR/root-a"
+assert_file_contains "$TEST_CONFIG_DIR/roots" "$TMP_DIR/root-b"
+[ -f "$TEST_CONFIG_DIR/onboarded" ] || fail "expected onboarding marker"
+
+output="$(run_termcode)"
+assert_contains "$output" "Usage:"
+assert_not_contains "$output" "Welcome to termcode."
+
+SET_FIRST_CONFIG="$TMP_DIR/set-first-config"
+output="$(TERMCODE_CONFIG_DIR="$SET_FIRST_CONFIG" "$TERMCODE" set "$TMP_DIR/root-a")"
+assert_contains "$output" "Saved 1 project root."
+output="$(TERMCODE_CONFIG_DIR="$SET_FIRST_CONFIG" "$TERMCODE")"
+assert_contains "$output" "Usage:"
+assert_not_contains "$output" "Welcome to termcode."
+
+output="$(run_termcode runner get)"
+assert_eq "$output" "pnpm"
+output="$(run_termcode runner set yarn)"
+assert_contains "$output" "Preferred runner set to yarn run."
+assert_eq "$(run_termcode runner get)" "yarn"
+output="$(run_termcode runner clear)"
+assert_contains "$output" "Preferred runner cleared."
+assert_eq "$(run_termcode runner get)" "none"
+
+set +e
+invalid_runner_output="$(run_termcode runner set deno 2>&1)"
+invalid_runner_status="$?"
+set -e
+[ "$invalid_runner_status" -eq 1 ] || fail "expected invalid runner to exit 1"
+assert_contains "$invalid_runner_output" "preferred runner must be bun, pnpm, npm, yarn, or none"
+
+output="$(run_termcode ls)"
 assert_contains "$output" "alpha"
 assert_contains "$output" "beta"
 assert_contains "$output" "gamma"
 assert_not_contains "$output" "not-a-project"
 
-output="$("$TERMCODE" rename alpha a)"
+output="$(run_termcode rename alpha a)"
 assert_contains "$output" "Renamed alpha to a."
-output="$("$TERMCODE" ls)"
+output="$(run_termcode ls)"
 assert_contains "$output" "a"
 assert_contains "$output" "$TMP_DIR/root-a/alpha"
 
-"$TERMCODE" open a
+run_termcode open a
 assert_file_contains "$TERMCODE_TEST_LOG" "open|"
 assert_file_contains "$TERMCODE_TEST_LOG" "$TMP_DIR/root-a/alpha"
 
-"$TERMCODE" . beta
+run_termcode . beta
 assert_file_contains "$TERMCODE_TEST_LOG" "code|"
 assert_file_contains "$TERMCODE_TEST_LOG" "$TMP_DIR/root-a/beta"
 
+assert_eq "$(run_termcode path gamma)" "$TMP_DIR/root-b/gamma"
+assert_eq "$(run_termcode gamma)" "$TMP_DIR/root-b/gamma"
+
 : > "$TERMCODE_TEST_LOG"
-touch "$TMP_DIR/root-b/gamma/pnpm-lock.yaml"
-"$TERMCODE" gamma dev --watch
+run_termcode runner set pnpm >/dev/null
+run_termcode gamma dev --watch
 assert_file_contains "$TERMCODE_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|run dev -- --watch"
 
 : > "$TERMCODE_TEST_LOG"
-touch "$TMP_DIR/root-a/beta/yarn.lock"
-"$TERMCODE" beta build
-assert_file_contains "$TERMCODE_TEST_LOG" "yarn|$TMP_DIR/root-a/beta|run build"
+run_termcode runner clear >/dev/null
+run_termcode gamma bun run build --mode production
+assert_file_contains "$TERMCODE_TEST_LOG" "bun|$TMP_DIR/root-b/gamma|run build -- --mode production"
+
+set +e
+missing_runner_output="$(run_termcode gamma dev 2>&1)"
+missing_runner_status="$?"
+set -e
+[ "$missing_runner_status" -eq 64 ] || fail "expected missing runner to exit 64"
+assert_contains "$missing_runner_output" "no preferred runner is set"
+assert_contains "$missing_runner_output" "termcode gamma bun run dev"
+
+init_output="$(run_termcode init zsh)"
+assert_contains "$init_output" "termcode()"
+assert_contains "$init_output" "command termcode path"
+printf '%s\n' "$init_output" > "$TMP_DIR/termcode.zsh"
+if command -v zsh >/dev/null 2>&1; then
+  zsh -n "$TMP_DIR/termcode.zsh"
+fi
 
 make_project "$TMP_DIR/root-b/alpha"
 set +e
-duplicate_output="$("$TERMCODE" ls 2>&1)"
+duplicate_output="$(run_termcode ls 2>&1)"
 duplicate_status="$?"
 set -e
 [ "$duplicate_status" -eq 65 ] || fail "expected duplicate ls to exit 65, got $duplicate_status"
@@ -128,18 +201,18 @@ assert_contains "$duplicate_output" "$TMP_DIR/root-b/alpha"
 
 output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/install-local" "$ROOT_DIR/install.sh")"
 assert_contains "$output" "Installed termcode to $TMP_DIR/install-local/termcode"
-"$TMP_DIR/install-local/termcode" --version >/dev/null
+assert_contains "$("$TMP_DIR/install-local/termcode" --version)" "termcode 0.2.0"
 
 cp "$ROOT_DIR/install.sh" "$TMP_DIR/remote-install.sh"
 output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/install-remote" TERMCODE_SOURCE_URL="file://$TERMCODE" bash "$TMP_DIR/remote-install.sh")"
 assert_contains "$output" "Downloading termcode from file://$TERMCODE"
 assert_contains "$output" "Installed termcode to $TMP_DIR/install-remote/termcode"
-"$TMP_DIR/install-remote/termcode" --version >/dev/null
+assert_contains "$("$TMP_DIR/install-remote/termcode" --version)" "termcode 0.2.0"
 
 output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/install-piped" TERMCODE_SOURCE_URL="file://$TERMCODE" bash < "$ROOT_DIR/install.sh")"
 assert_contains "$output" "Downloading termcode from file://$TERMCODE"
 assert_contains "$output" "Installed termcode to $TMP_DIR/install-piped/termcode"
-"$TMP_DIR/install-piped/termcode" --version >/dev/null
+assert_contains "$("$TMP_DIR/install-piped/termcode" --version)" "termcode 0.2.0"
 
 mkdir -p "$TMP_DIR/readonly"
 chmod 555 "$TMP_DIR/readonly"
@@ -152,4 +225,4 @@ chmod 755 "$TMP_DIR/readonly"
 assert_contains "$readonly_output" "Cannot write to $TMP_DIR/readonly."
 assert_contains "$readonly_output" "sudo env TERMCODE_INSTALL_DIR=\"$TMP_DIR/readonly\" bash"
 
-printf 'ok - termcode roadmap behavior\n'
+printf 'ok - termcode v0.2 behavior\n'

@@ -11,4 +11,8 @@ Define user-visible command contracts.
 - `ls` prints callable project names alphabetically.
 - `rename` creates aliases only.
 - duplicate names fail until resolved with an alias.
-- script execution auto-detects package manager by lockfile.
+- `runner get/set/clear` manages the Preferred Runner.
+- `path <project>` prints a single resolved project path.
+- `<project>` prints the resolved project path unless shell integration wraps it.
+- script execution uses either the Preferred Runner or an explicit runner form such as `termcode my-app bun run dev`.
+- missing Preferred Runner fails with setup guidance instead of guessing a package manager.

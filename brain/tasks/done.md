@@ -30,3 +30,10 @@ Track completed tasks.
 - Related Feature: Termcode CLI
 - Status: Done
 - Created Date: 2026-05-26
+
+### Implement v0.2 Roadmap
+- Priority: High
+- Description: Implemented first-run onboarding, Preferred Runner config, runner get/set/clear commands, explicit runner overrides, missing-runner guidance, path printing, zsh jump integration, expanded tests, README updates, Brain updates, and version 0.2.0 release metadata.
+- Related Feature: Termcode CLI
+- Status: Done
+- Created Date: 2026-05-30

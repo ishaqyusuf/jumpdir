@@ -14,3 +14,4 @@ Map the repository structure for humans and AI agents.
 - `brain/`: project memory and planning docs.
 - `brain/product/marketing.md`: positioning and launch copy.
 - `brain/tasks/roadmap.md`: implementation sequence.
+- `brain/tasks/v0.2-roadmap.md`: next-version onboarding, runner preference, and jump workflow plan.

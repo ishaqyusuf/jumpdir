@@ -15,3 +15,4 @@ Track product milestones.
 - Done: Implement open commands.
 - Done: Implement package script runner.
 - Done: Add installer polish and Homebrew formula preparation.
+- Done: Implement v0.2 onboarding, Preferred Runner, explicit runner override, path command, and zsh jump integration.
