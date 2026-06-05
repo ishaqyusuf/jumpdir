@@ -22,10 +22,13 @@ Track the main CLI feature.
 - `termcode rename <name-or-path> <alias>` stores an alias for a resolved project path.
 - `termcode open <project>` opens Finder, and `termcode . <project>` opens VS Code.
 - `termcode runner get/set/clear` manages the Preferred Runner.
+- `termcode update` checks whether a newer published version is available.
 - `termcode <project> <script> [args...]` runs scripts through the Preferred Runner.
 - `termcode <project> <runner> run <script> [args...]` runs scripts through an explicit one-off runner.
+- Invalid script names print the available package scripts before exiting, without invoking the runner.
 - `termcode path <project>` prints a resolved project path.
 - `termcode <project>` prints the project path without shell integration.
+- Interactive `termcode <project>` also shows package-script suggestions on stderr.
 - `termcode init zsh` prints shell integration so one-argument project commands can `cd` in the parent shell.
 
 ## v0.2 Decisions

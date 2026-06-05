@@ -17,8 +17,10 @@ termcode
 termcode runner set pnpm
 termcode set ~/Documents/code ~/Desktop/projects
 termcode ls
+termcode update
 termcode my-app
 termcode my-app dev
+termcode my-app dev-2
 termcode my-app bun run dev
 termcode open my-app
 termcode . my-app
@@ -78,6 +80,8 @@ termcode my-app npm run dev
 termcode my-app yarn run dev
 ```
 
+If you type a script name that is not in the project `package.json`, `termcode` prints the available script names for that project before exiting. When you run only `termcode my-app` in an interactive terminal, it still prints the project path and also shows the scripts you can run next.
+
 ## Jump Workflow
 
 Without shell integration, `termcode <project>` prints the project path:
@@ -116,6 +120,12 @@ curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh
 Use `sudo` only for system-owned directories like `/usr/local/bin`.
 
 ## Update
+
+Check whether a newer version is available:
+
+```sh
+termcode update
+```
 
 Rerun the installer to update `termcode`. It overwrites the existing binary with the latest version from `main`.
 
@@ -174,6 +184,7 @@ termcode ls
 termcode runner get
 termcode runner set <bun|pnpm|npm|yarn|none>
 termcode runner clear
+termcode update
 termcode rename <current-name-or-path> <new-alias>
 termcode path <project>
 termcode init zsh
@@ -184,6 +195,7 @@ termcode <project> <runner> run <script> [args...]
 ```
 
 Script execution uses your preferred runner, or the explicit runner you pass in the command.
+Invalid script names fail before invoking the runner and show the scripts from that project's `package.json`.
 
 ## Development
 

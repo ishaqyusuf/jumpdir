@@ -7,6 +7,11 @@ ROOTS_FILE="$CONFIG_DIR/roots"
 ALIASES_FILE="$CONFIG_DIR/aliases"
 RUNNER_FILE="$CONFIG_DIR/runner"
 ONBOARDED_FILE="$CONFIG_DIR/onboarded"
+REPO_OWNER="${TERMCODE_REPO_OWNER:-ishaqyusuf}"
+REPO_NAME="${TERMCODE_REPO_NAME:-termcode}"
+REF="${TERMCODE_REF:-main}"
+SOURCE_URL="${TERMCODE_SOURCE_URL:-https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/bin/termcode}"
+INSTALLER_URL="https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/install.sh"
 
 usage() {
   cat <<EOF
@@ -19,6 +24,7 @@ Usage:
   termcode runner get                  Show preferred runner
   termcode runner set <runner|none>    Set preferred runner
   termcode runner clear                Clear preferred runner
+  termcode update                      Check for a newer termcode version
   termcode rename <name-or-path> <as>  Create a callable alias
   termcode path <project>              Print project path
   termcode init zsh                    Print zsh jump integration
@@ -79,6 +85,28 @@ basename_of() {
 
 has_package_json() {
   [ -f "$1/package.json" ]
+}
+
+supports_color() {
+  [ -t 2 ] || return 1
+  [ -z "${NO_COLOR:-}" ] || return 1
+  [ "${TERM:-}" != "dumb" ] || return 1
+}
+
+style_project_name() {
+  if supports_color; then
+    printf '\033[36m%s\033[0m' "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+style_script_badge() {
+  if supports_color; then
+    printf '\033[30;47m %s \033[0m' "$1"
+  else
+    printf '[%s]' "$1"
+  fi
 }
 
 validate_alias() {
@@ -152,6 +180,67 @@ runner_command() {
       usage_error "runner requires get, set, or clear"
       ;;
   esac
+}
+
+fetch_latest_version() {
+  local source version
+  command -v curl >/dev/null 2>&1 || die "curl is required to check for updates"
+
+  if ! source="$(curl -fsSL "$SOURCE_URL")"; then
+    die "could not fetch latest version from $SOURCE_URL"
+  fi
+
+  version="$(printf '%s\n' "$source" | sed -n 's/^VERSION="\([^"]*\)".*/\1/p' | sed -n '1p')"
+  [ -n "$version" ] || die "could not read latest version from $SOURCE_URL"
+  printf '%s\n' "$version"
+}
+
+version_is_newer() {
+  awk -v latest="$1" -v current="$2" '
+    function normalize(version) {
+      sub(/^v/, "", version)
+      return version
+    }
+
+    BEGIN {
+      latest = normalize(latest)
+      current = normalize(current)
+      latest_count = split(latest, latest_parts, ".")
+      current_count = split(current, current_parts, ".")
+      max_count = latest_count > current_count ? latest_count : current_count
+
+      for (i = 1; i <= max_count; i += 1) {
+        latest_part = latest_parts[i] + 0
+        current_part = current_parts[i] + 0
+        if (latest_part > current_part) {
+          exit 0
+        }
+        if (latest_part < current_part) {
+          exit 1
+        }
+      }
+
+      exit 1
+    }
+  '
+}
+
+update_command() {
+  [ "$#" -eq 0 ] || usage_error "update does not accept arguments"
+
+  local latest_version
+  latest_version="$(fetch_latest_version)"
+
+  printf 'Current version: %s\n' "$VERSION"
+  printf 'Latest version:  %s\n' "$latest_version"
+
+  if version_is_newer "$latest_version" "$VERSION"; then
+    printf '\nA newer termcode version is available.\n'
+    printf 'Update with:\n'
+    printf '  curl -fsSL %s | bash\n' "$INSTALLER_URL"
+  else
+    printf '\ntermcode is up to date.\n'
+  fi
 }
 
 has_completed_onboarding() {
@@ -351,7 +440,9 @@ resolve_project() {
   case "$count" in
     0)
       rm -f "$tmp"
-      die "project not found: $query"
+      printf 'termcode: project not found: %s\n\n' "$query" >&2
+      usage >&2
+      exit 64
       ;;
     1)
       path="$(sed -n '1p' "$tmp")"
@@ -367,6 +458,34 @@ resolve_project() {
       exit 65
       ;;
   esac
+}
+
+resolve_project_quiet() {
+  local query expanded tmp path count
+  query="$1"
+  ensure_config_dir
+
+  expanded="$(expand_path "$query")"
+  if [ -d "$expanded" ] && has_package_json "$expanded"; then
+    (cd "$expanded" && pwd -P)
+    return 0
+  fi
+
+  tmp="$CONFIG_DIR/.matches.$$"
+  : > "$tmp"
+
+  iter_callables | awk -F '\t' -v query="$query" '$1 == query { print $2 }' | sort -u > "$tmp"
+  count="$(wc -l < "$tmp" | tr -d ' ')"
+
+  if [ "$count" -eq 1 ]; then
+    path="$(sed -n '1p' "$tmp")"
+    rm -f "$tmp"
+    printf '%s\n' "$path"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  return 1
 }
 
 alias_conflicts() {
@@ -428,6 +547,135 @@ path_project() {
   resolve_project "$1"
 }
 
+package_scripts() {
+  local target package_json
+  target="$1"
+  package_json="$target/package.json"
+  [ -f "$package_json" ] || return 1
+
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+const fs = require("fs");
+const file = process.argv[1];
+let pkg;
+try {
+  pkg = JSON.parse(fs.readFileSync(file, "utf8"));
+} catch {
+  process.exit(1);
+}
+const scripts = pkg && pkg.scripts;
+if (!scripts || typeof scripts !== "object" || Array.isArray(scripts)) {
+  process.exit(0);
+}
+for (const name of Object.keys(scripts)) {
+  console.log(name);
+}
+' "$package_json"
+    return $?
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '.scripts | objects | keys_unsorted[]?' "$package_json" 2>/dev/null
+    return $?
+  fi
+
+  return 1
+}
+
+script_exists_in_list() {
+  local script scripts candidate
+  script="$1"
+  scripts="$2"
+
+  while IFS= read -r candidate || [ -n "$candidate" ]; do
+    [ "$candidate" = "$script" ] && return 0
+  done <<EOF
+$scripts
+EOF
+
+  return 1
+}
+
+print_script_suggestions() {
+  local project scripts project_label script first
+  project="$1"
+  scripts="$2"
+  project_label="$(style_project_name "$project")"
+
+  if [ -z "$scripts" ]; then
+    printf 'No package scripts were found for project "%s".\n' "$project_label" >&2
+    return 0
+  fi
+
+  printf 'Here are the available script names on your project "%s":\n' "$project_label" >&2
+  first=1
+  while IFS= read -r script || [ -n "$script" ]; do
+    [ -n "$script" ] || continue
+    if [ "$first" -eq 1 ]; then
+      first=0
+    else
+      printf ' ' >&2
+    fi
+    style_script_badge "$script" >&2
+  done <<EOF
+$scripts
+EOF
+  printf '\n' >&2
+}
+
+print_interactive_project_help() {
+  local project target scripts
+  project="$1"
+  target="$2"
+  [ -t 2 ] || return 0
+
+  if scripts="$(package_scripts "$target")"; then
+    printf '\n' >&2
+    print_script_suggestions "$project" "$scripts"
+  fi
+}
+
+validate_script_or_exit() {
+  local project target script scripts
+  project="$1"
+  target="$2"
+  script="$3"
+
+  if ! scripts="$(package_scripts "$target")"; then
+    return 0
+  fi
+
+  if script_exists_in_list "$script" "$scripts"; then
+    return 0
+  fi
+
+  printf 'termcode: script not found: %s\n\n' "$script" >&2
+  print_script_suggestions "$project" "$scripts"
+  exit 64
+}
+
+complete_command() {
+  local subcommand target
+  subcommand="${1:-}"
+
+  case "$subcommand" in
+    projects)
+      shift
+      [ "$#" -eq 0 ] || return 0
+      project_names
+      ;;
+    scripts)
+      shift
+      [ "$#" -eq 1 ] || return 0
+      target="$(resolve_project_quiet "$1")" || return 0
+      package_scripts "$target" || return 0
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
 missing_runner_message() {
   local project script
   project="$1"
@@ -471,6 +719,7 @@ run_project_command() {
 
   if [ "$#" -eq 1 ]; then
     printf '%s\n' "$target"
+    print_interactive_project_help "$project" "$target"
     return 0
   fi
 
@@ -478,12 +727,14 @@ run_project_command() {
     runner="$2"
     script="$4"
     shift 4
+    validate_script_or_exit "$project" "$target" "$script"
     run_with_runner "$target" "$runner" "$script" "$@"
     return 0
   fi
 
   script="$2"
   shift 2
+  validate_script_or_exit "$project" "$target" "$script"
   runner="$(get_runner_preference)"
   if [ "$runner" = "none" ]; then
     missing_runner_message "$project" "$script"
@@ -496,7 +747,7 @@ print_zsh_init() {
   cat <<'EOF'
 termcode() {
   case "${1:-}" in
-    ""|-h|--help|-v|--version|set|ls|runner|rename|path|init|open|.)
+    ""|-h|--help|-v|--version|set|ls|runner|update|rename|path|init|open|.)
       command termcode "$@"
       ;;
     *)
@@ -645,6 +896,10 @@ main() {
     runner)
       shift
       runner_command "$@"
+      ;;
+    update)
+      shift
+      update_command "$@"
       ;;
     rename)
       shift

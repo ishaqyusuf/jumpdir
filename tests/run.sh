@@ -56,7 +56,7 @@ make_project() {
   local dir
   dir="$1"
   mkdir -p "$dir"
-  printf '{"scripts":{"dev":"echo dev","build":"echo build"}}\n' > "$dir/package.json"
+  printf '{"scripts":{"dev":"echo dev","dev-2":"echo dev2","build":"echo build"}}\n' > "$dir/package.json"
 }
 
 make_stub() {
@@ -94,7 +94,21 @@ mkdir -p "$TMP_DIR/root-a/not-a-project"
 output="$(TERMCODE_CONFIG_DIR="$TMP_DIR/help-config" "$TERMCODE" --help)"
 assert_contains "$output" "termcode - jump into and run scripts for local repos"
 assert_contains "$output" "termcode runner set <runner|none>"
+assert_contains "$output" "termcode update"
 assert_not_contains "$output" "Welcome to termcode."
+
+output="$(TERMCODE_SOURCE_URL="file://$TERMCODE" "$TERMCODE" update)"
+assert_contains "$output" "Current version: 0.2.0"
+assert_contains "$output" "Latest version:  0.2.0"
+assert_contains "$output" "termcode is up to date."
+
+NEWER_TERMCODE="$TMP_DIR/newer-termcode"
+printf '#!/usr/bin/env bash\nVERSION="9.9.9"\n' > "$NEWER_TERMCODE"
+output="$(TERMCODE_SOURCE_URL="file://$NEWER_TERMCODE" "$TERMCODE" update)"
+assert_contains "$output" "Current version: 0.2.0"
+assert_contains "$output" "Latest version:  9.9.9"
+assert_contains "$output" "A newer termcode version is available."
+assert_contains "$output" "curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | bash"
 
 TEST_CONFIG_DIR="$TMP_DIR/config"
 output="$(
@@ -140,6 +154,15 @@ set -e
 [ "$invalid_runner_status" -eq 1 ] || fail "expected invalid runner to exit 1"
 assert_contains "$invalid_runner_output" "preferred runner must be bun, pnpm, npm, yarn, or none"
 
+set +e
+invalid_prompt_output="$(run_termcode not-a-real-project 2>&1)"
+invalid_prompt_status="$?"
+set -e
+[ "$invalid_prompt_status" -eq 64 ] || fail "expected invalid prompt to exit 64"
+assert_contains "$invalid_prompt_output" "project not found: not-a-real-project"
+assert_contains "$invalid_prompt_output" "Usage:"
+assert_contains "$invalid_prompt_output" "termcode runner get"
+
 output="$(run_termcode ls)"
 assert_contains "$output" "alpha"
 assert_contains "$output" "beta"
@@ -165,11 +188,35 @@ assert_eq "$(run_termcode gamma)" "$TMP_DIR/root-b/gamma"
 
 : > "$TERMCODE_TEST_LOG"
 run_termcode runner set pnpm >/dev/null
+set +e
+invalid_script_output="$(run_termcode gamma dev2 2>&1)"
+invalid_script_status="$?"
+set -e
+[ "$invalid_script_status" -eq 64 ] || fail "expected invalid script to exit 64"
+assert_contains "$invalid_script_output" "script not found: dev2"
+assert_contains "$invalid_script_output" "available script names on your project \"gamma\""
+assert_contains "$invalid_script_output" "[dev]"
+assert_contains "$invalid_script_output" "[dev-2]"
+assert_contains "$invalid_script_output" "[build]"
+assert_eq "$(wc -l < "$TERMCODE_TEST_LOG" | tr -d ' ')" "0"
+
 run_termcode gamma dev --watch
 assert_file_contains "$TERMCODE_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|run dev -- --watch"
 
 : > "$TERMCODE_TEST_LOG"
 run_termcode runner clear >/dev/null
+set +e
+invalid_explicit_script_output="$(run_termcode gamma bun run dev2 2>&1)"
+invalid_explicit_script_status="$?"
+set -e
+[ "$invalid_explicit_script_status" -eq 64 ] || fail "expected invalid explicit script to exit 64"
+assert_contains "$invalid_explicit_script_output" "script not found: dev2"
+assert_contains "$invalid_explicit_script_output" "available script names on your project \"gamma\""
+assert_contains "$invalid_explicit_script_output" "[dev]"
+assert_contains "$invalid_explicit_script_output" "[dev-2]"
+assert_contains "$invalid_explicit_script_output" "[build]"
+assert_eq "$(wc -l < "$TERMCODE_TEST_LOG" | tr -d ' ')" "0"
+
 run_termcode gamma bun run build --mode production
 assert_file_contains "$TERMCODE_TEST_LOG" "bun|$TMP_DIR/root-b/gamma|run build -- --mode production"
 
