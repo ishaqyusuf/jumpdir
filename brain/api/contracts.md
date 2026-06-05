@@ -15,6 +15,7 @@ Define user-visible command contracts.
 - `update` checks the published `bin/termcode` version and reports whether a newer version is available.
 - `path <project>` prints a single resolved project path.
 - `<project>` prints the resolved project path unless shell integration wraps it.
+- `init zsh` provides zsh completion for command names, project names, aliases, and package scripts.
 - interactive `<project>` also prints available package scripts on stderr when they can be read.
 - script execution uses either the Preferred Runner or an explicit runner form such as `termcode my-app bun run dev`.
 - invalid script names fail before invoking the runner and print available package scripts when they can be read.

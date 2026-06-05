@@ -745,9 +745,83 @@ run_project_command() {
 
 print_zsh_init() {
   cat <<'EOF'
+_termcode() {
+  local -a commands projects scripts runner_commands runner_preferences runners
+  commands=(set ls runner update rename path init open . --help --version)
+  runner_commands=(get set clear)
+  runner_preferences=(bun pnpm npm yarn none)
+  runners=(bun pnpm npm yarn)
+
+  case "${words[2]:-}" in
+    runner)
+      if [ "$CURRENT" -eq 3 ]; then
+        compadd -a runner_commands
+        return
+      fi
+      if [ "$CURRENT" -eq 4 ] && [ "${words[3]:-}" = "set" ]; then
+        compadd -a runner_preferences
+        return
+      fi
+      return
+      ;;
+    open|.|path)
+      if [ "$CURRENT" -eq 3 ]; then
+        projects=("${(@f)$(command termcode complete projects 2>/dev/null)}")
+        compadd -a projects
+      fi
+      return
+      ;;
+    rename)
+      if [ "$CURRENT" -eq 3 ]; then
+        projects=("${(@f)$(command termcode complete projects 2>/dev/null)}")
+        compadd -a projects
+      fi
+      return
+      ;;
+    init)
+      if [ "$CURRENT" -eq 3 ]; then
+        compadd zsh
+      fi
+      return
+      ;;
+    set|ls|update|-h|--help|-v|--version)
+      return
+      ;;
+  esac
+
+  if [ "$CURRENT" -eq 2 ]; then
+    projects=("${(@f)$(command termcode complete projects 2>/dev/null)}")
+    compadd -a commands
+    compadd -a projects
+    return
+  fi
+
+  if [ "$CURRENT" -eq 3 ]; then
+    scripts=("${(@f)$(command termcode complete scripts "${words[2]}" 2>/dev/null)}")
+    compadd -a scripts
+    return
+  fi
+
+  case "${words[3]:-}" in
+    bun|pnpm|npm|yarn)
+      if [ "$CURRENT" -eq 4 ]; then
+        compadd run
+        return
+      fi
+      if [ "$CURRENT" -eq 5 ] && [ "${words[4]:-}" = "run" ]; then
+        scripts=("${(@f)$(command termcode complete scripts "${words[2]}" 2>/dev/null)}")
+        compadd -a scripts
+        return
+      fi
+      ;;
+  esac
+}
+
+compdef _termcode termcode
+
 termcode() {
   case "${1:-}" in
-    ""|-h|--help|-v|--version|set|ls|runner|update|rename|path|init|open|.)
+    ""|-h|--help|-v|--version|set|ls|runner|update|complete|rename|path|init|open|.)
       command termcode "$@"
       ;;
     *)
@@ -900,6 +974,10 @@ main() {
     update)
       shift
       update_command "$@"
+      ;;
+    complete)
+      shift
+      complete_command "$@"
       ;;
     rename)
       shift

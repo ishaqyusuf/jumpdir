@@ -9,6 +9,5 @@ Track future work not yet in progress.
 
 ## Tasks
 - Add Homebrew formula.
-- Add shell completion.
 - Add configurable editor command.
 - Add configurable default runner override.

@@ -98,6 +98,7 @@ eval "$(termcode init zsh)"
 ```
 
 A standalone CLI cannot change its parent shell directory, so the shell integration wraps the binary and runs `cd "$(command termcode path my-app)"` for one-argument project jumps.
+The same zsh integration also enables tab completion for project names, aliases, and package scripts.
 
 ## Install
 

@@ -169,11 +169,33 @@ assert_contains "$output" "beta"
 assert_contains "$output" "gamma"
 assert_not_contains "$output" "not-a-project"
 
+output="$(run_termcode complete projects)"
+assert_contains "$output" "alpha"
+assert_contains "$output" "beta"
+assert_contains "$output" "gamma"
+assert_not_contains "$output" "not-a-project"
+
 output="$(run_termcode rename alpha a)"
 assert_contains "$output" "Renamed alpha to a."
 output="$(run_termcode ls)"
 assert_contains "$output" "a"
 assert_contains "$output" "$TMP_DIR/root-a/alpha"
+output="$(run_termcode complete projects)"
+assert_contains "$output" "a"
+assert_contains "$output" "beta"
+assert_contains "$output" "gamma"
+
+output="$(run_termcode complete scripts gamma)"
+assert_contains "$output" "dev"
+assert_contains "$output" "dev-2"
+assert_contains "$output" "build"
+
+set +e
+unknown_completion_output="$(run_termcode complete scripts not-a-real-project 2>&1)"
+unknown_completion_status="$?"
+set -e
+[ "$unknown_completion_status" -eq 0 ] || fail "expected unknown completion to exit 0"
+assert_eq "$unknown_completion_output" ""
 
 run_termcode open a
 assert_file_contains "$TERMCODE_TEST_LOG" "open|"
@@ -230,6 +252,10 @@ assert_contains "$missing_runner_output" "termcode gamma bun run dev"
 
 init_output="$(run_termcode init zsh)"
 assert_contains "$init_output" "termcode()"
+assert_contains "$init_output" "_termcode()"
+assert_contains "$init_output" "compdef _termcode termcode"
+assert_contains "$init_output" "command termcode complete projects"
+assert_contains "$init_output" "command termcode complete scripts"
 assert_contains "$init_output" "command termcode path"
 printf '%s\n' "$init_output" > "$TMP_DIR/termcode.zsh"
 if command -v zsh >/dev/null 2>&1; then

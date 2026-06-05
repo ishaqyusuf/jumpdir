@@ -30,6 +30,7 @@ Track the main CLI feature.
 - `termcode <project>` prints the project path without shell integration.
 - Interactive `termcode <project>` also shows package-script suggestions on stderr.
 - `termcode init zsh` prints shell integration so one-argument project commands can `cd` in the parent shell.
+- The zsh integration also completes command names, project names, aliases, and package scripts.
 
 ## v0.2 Decisions
 - Preferred Runner is the shipped name.

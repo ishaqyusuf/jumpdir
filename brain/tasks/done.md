@@ -37,3 +37,10 @@ Track completed tasks.
 - Related Feature: Termcode CLI
 - Status: Done
 - Created Date: 2026-05-30
+
+### Add Zsh Completion
+- Priority: Medium
+- Description: Added zsh completion for command names, project names, aliases, and package scripts through `termcode init zsh`.
+- Related Feature: Termcode CLI
+- Status: Done
+- Created Date: 2026-06-05
