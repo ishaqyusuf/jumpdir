@@ -24,7 +24,9 @@ Track the main CLI feature.
 - `termcode runner get/set/clear` manages the Preferred Runner.
 - `termcode update` checks whether a newer published version is available.
 - `termcode <project> <script> [args...]` runs scripts through the Preferred Runner.
+- `termcode <project> run <script> [args...]` runs scripts through the Preferred Runner with an explicit `run` keyword.
 - `termcode <project> <runner> run <script> [args...]` runs scripts through an explicit one-off runner.
+- `termcode <project> <runner> <command> [args...]` runs package-manager commands like `install` or `add` inside the project.
 - Invalid script names print the available package scripts before exiting, without invoking the runner.
 - `termcode path <project>` prints a resolved project path.
 - `termcode <project>` prints the project path without shell integration.

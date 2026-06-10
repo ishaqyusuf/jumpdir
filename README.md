@@ -21,7 +21,9 @@ termcode update
 termcode my-app
 termcode my-app dev
 termcode my-app dev-2
+termcode my-app run dev
 termcode my-app bun run dev
+termcode my-app bun install
 termcode open my-app
 termcode . my-app
 termcode rename my-long-repo-name my-app
@@ -57,9 +59,10 @@ The preferred runner is the package runner `termcode` uses when you run a script
 ```sh
 termcode runner set pnpm
 termcode my-app dev
+termcode my-app run dev
 ```
 
-This runs:
+Both script forms run:
 
 ```sh
 pnpm run dev
@@ -78,6 +81,13 @@ termcode my-app bun run dev
 termcode my-app pnpm run dev
 termcode my-app npm run dev
 termcode my-app yarn run dev
+```
+
+You can also run package-manager commands inside a project:
+
+```sh
+termcode my-app bun install
+termcode my-app pnpm add react
 ```
 
 If you type a script name that is not in the project `package.json`, `termcode` prints the available script names for that project before exiting. When you run only `termcode my-app` in an interactive terminal, it still prints the project path and also shows the scripts you can run next.
@@ -157,7 +167,7 @@ TERMCODE_INSTALL_DIR=/usr/local/bin ./install.sh
 To install from another branch or tag with curl:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | TERMCODE_REF=v0.2.0 bash
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | TERMCODE_REF=v0.2.1 bash
 ```
 
 For forks, pass `TERMCODE_REPO_OWNER` and `TERMCODE_REPO_NAME` to the `bash` command.
@@ -192,10 +202,12 @@ termcode init zsh
 termcode open <project>
 termcode . <project>
 termcode <project> <script> [args...]
+termcode <project> run <script> [args...]
 termcode <project> <runner> run <script> [args...]
+termcode <project> <runner> <command> [args...]
 ```
 
-Script execution uses your preferred runner, or the explicit runner you pass in the command.
+Script execution uses your preferred runner, `run` as the second word uses your preferred runner explicitly, and a named runner can execute package-manager commands inside the project.
 Invalid script names fail before invoking the runner and show the scripts from that project's `package.json`.
 
 ## Development

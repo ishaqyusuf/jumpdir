@@ -98,14 +98,14 @@ assert_contains "$output" "termcode update"
 assert_not_contains "$output" "Welcome to termcode."
 
 output="$(TERMCODE_SOURCE_URL="file://$TERMCODE" "$TERMCODE" update)"
-assert_contains "$output" "Current version: 0.2.0"
-assert_contains "$output" "Latest version:  0.2.0"
+assert_contains "$output" "Current version: 0.2.1"
+assert_contains "$output" "Latest version:  0.2.1"
 assert_contains "$output" "termcode is up to date."
 
 NEWER_TERMCODE="$TMP_DIR/newer-termcode"
 printf '#!/usr/bin/env bash\nVERSION="9.9.9"\n' > "$NEWER_TERMCODE"
 output="$(TERMCODE_SOURCE_URL="file://$NEWER_TERMCODE" "$TERMCODE" update)"
-assert_contains "$output" "Current version: 0.2.0"
+assert_contains "$output" "Current version: 0.2.1"
 assert_contains "$output" "Latest version:  9.9.9"
 assert_contains "$output" "A newer termcode version is available."
 assert_contains "$output" "curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/termcode/main/install.sh | bash"
@@ -225,6 +225,9 @@ assert_eq "$(wc -l < "$TERMCODE_TEST_LOG" | tr -d ' ')" "0"
 run_termcode gamma dev --watch
 assert_file_contains "$TERMCODE_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|run dev -- --watch"
 
+run_termcode gamma run build --mode production
+assert_file_contains "$TERMCODE_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|run build -- --mode production"
+
 : > "$TERMCODE_TEST_LOG"
 run_termcode runner clear >/dev/null
 set +e
@@ -242,6 +245,13 @@ assert_eq "$(wc -l < "$TERMCODE_TEST_LOG" | tr -d ' ')" "0"
 run_termcode gamma bun run build --mode production
 assert_file_contains "$TERMCODE_TEST_LOG" "bun|$TMP_DIR/root-b/gamma|run build -- --mode production"
 
+: > "$TERMCODE_TEST_LOG"
+run_termcode gamma bun install --frozen-lockfile
+assert_file_contains "$TERMCODE_TEST_LOG" "bun|$TMP_DIR/root-b/gamma|install --frozen-lockfile"
+
+run_termcode gamma pnpm add react
+assert_file_contains "$TERMCODE_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|add react"
+
 set +e
 missing_runner_output="$(run_termcode gamma dev 2>&1)"
 missing_runner_status="$?"
@@ -249,6 +259,14 @@ set -e
 [ "$missing_runner_status" -eq 64 ] || fail "expected missing runner to exit 64"
 assert_contains "$missing_runner_output" "no preferred runner is set"
 assert_contains "$missing_runner_output" "termcode gamma bun run dev"
+
+set +e
+missing_run_keyword_output="$(run_termcode gamma run dev 2>&1)"
+missing_run_keyword_status="$?"
+set -e
+[ "$missing_run_keyword_status" -eq 64 ] || fail "expected missing run keyword runner to exit 64"
+assert_contains "$missing_run_keyword_output" "no preferred runner is set"
+assert_contains "$missing_run_keyword_output" "termcode gamma run dev"
 
 init_output="$(run_termcode init zsh)"
 assert_contains "$init_output" "termcode()"
@@ -274,18 +292,18 @@ assert_contains "$duplicate_output" "$TMP_DIR/root-b/alpha"
 
 output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/install-local" "$ROOT_DIR/install.sh")"
 assert_contains "$output" "Installed termcode to $TMP_DIR/install-local/termcode"
-assert_contains "$("$TMP_DIR/install-local/termcode" --version)" "termcode 0.2.0"
+assert_contains "$("$TMP_DIR/install-local/termcode" --version)" "termcode 0.2.1"
 
 cp "$ROOT_DIR/install.sh" "$TMP_DIR/remote-install.sh"
 output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/install-remote" TERMCODE_SOURCE_URL="file://$TERMCODE" bash "$TMP_DIR/remote-install.sh")"
 assert_contains "$output" "Downloading termcode from file://$TERMCODE"
 assert_contains "$output" "Installed termcode to $TMP_DIR/install-remote/termcode"
-assert_contains "$("$TMP_DIR/install-remote/termcode" --version)" "termcode 0.2.0"
+assert_contains "$("$TMP_DIR/install-remote/termcode" --version)" "termcode 0.2.1"
 
 output="$(TERMCODE_INSTALL_DIR="$TMP_DIR/install-piped" TERMCODE_SOURCE_URL="file://$TERMCODE" bash < "$ROOT_DIR/install.sh")"
 assert_contains "$output" "Downloading termcode from file://$TERMCODE"
 assert_contains "$output" "Installed termcode to $TMP_DIR/install-piped/termcode"
-assert_contains "$("$TMP_DIR/install-piped/termcode" --version)" "termcode 0.2.0"
+assert_contains "$("$TMP_DIR/install-piped/termcode" --version)" "termcode 0.2.1"
 
 mkdir -p "$TMP_DIR/readonly"
 chmod 555 "$TMP_DIR/readonly"

@@ -44,3 +44,10 @@ Track completed tasks.
 - Related Feature: Termcode CLI
 - Status: Done
 - Created Date: 2026-06-05
+
+### Support Package Manager Commands
+- Priority: High
+- Description: Added explicit package-manager command parsing such as `termcode my-app bun install`, made `termcode my-app run dev` use the Preferred Runner, updated docs/tests, and bumped version to 0.2.1.
+- Related Feature: Termcode CLI
+- Status: Done
+- Created Date: 2026-06-10

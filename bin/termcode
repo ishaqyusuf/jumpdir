@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.2.0"
+VERSION="0.2.1"
 CONFIG_DIR="${TERMCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/termcode}"
 ROOTS_FILE="$CONFIG_DIR/roots"
 ALIASES_FILE="$CONFIG_DIR/aliases"
@@ -32,7 +32,9 @@ Usage:
   termcode . <project>                 Open project folder in VS Code
   termcode <project>                   Print project path
   termcode <project> <script> [args...]                 Run with preferred runner
+  termcode <project> run <script> [args...]             Run with preferred runner
   termcode <project> <runner> run <script> [args...]    Run with explicit runner
+  termcode <project> <runner> <command> [args...]       Run package manager command
   termcode --help                      Show help
   termcode --version                   Show version
 
@@ -691,6 +693,7 @@ Choose one:
 
 Or provide one for this command:
   termcode $project bun run $script
+  termcode $project run $script
 EOF
   exit 64
 }
@@ -710,10 +713,21 @@ run_with_runner() {
   fi
 }
 
+run_package_manager_command() {
+  local target runner subcommand
+  target="$1"
+  runner="$2"
+  subcommand="$3"
+  shift 3
+
+  printf 'Running %s %s in %s\n' "$runner" "$subcommand" "$target" >&2
+  (cd "$target" && command "$runner" "$subcommand" "$@")
+}
+
 run_project_command() {
   [ "$#" -ge 1 ] || usage_error "project command requires a project"
 
-  local project target runner script
+  local project target runner script subcommand
   project="$1"
   target="$(resolve_project "$project")"
 
@@ -723,12 +737,34 @@ run_project_command() {
     return 0
   fi
 
-  if [ "$#" -ge 4 ] && is_runner "$2" && [ "$3" = "run" ]; then
-    runner="$2"
-    script="$4"
-    shift 4
+  if [ "$2" = "run" ]; then
+    [ "$#" -ge 3 ] || usage_error "run requires a script"
+    script="$3"
+    shift 3
     validate_script_or_exit "$project" "$target" "$script"
+    runner="$(get_runner_preference)"
+    if [ "$runner" = "none" ]; then
+      missing_runner_message "$project" "$script"
+    fi
     run_with_runner "$target" "$runner" "$script" "$@"
+    return 0
+  fi
+
+  if is_runner "$2"; then
+    runner="$2"
+    [ "$#" -ge 3 ] || usage_error "$runner requires a command"
+    subcommand="$3"
+
+    if [ "$subcommand" = "run" ]; then
+      [ "$#" -ge 4 ] || usage_error "$runner run requires a script"
+      script="$4"
+      shift 4
+      validate_script_or_exit "$project" "$target" "$script"
+      run_with_runner "$target" "$runner" "$script" "$@"
+    else
+      shift 3
+      run_package_manager_command "$target" "$runner" "$subcommand" "$@"
+    fi
     return 0
   fi
 
@@ -746,9 +782,10 @@ run_project_command() {
 print_zsh_init() {
   cat <<'EOF'
 _termcode() {
-  local -a commands projects scripts runner_commands runner_preferences runners
+  local -a commands projects scripts runner_commands runner_exec_commands runner_preferences runners
   commands=(set ls runner update rename path init open . --help --version)
   runner_commands=(get set clear)
+  runner_exec_commands=(run install add remove update upgrade exec dlx)
   runner_preferences=(bun pnpm npm yarn none)
   runners=(bun pnpm npm yarn)
 
@@ -798,17 +835,26 @@ _termcode() {
 
   if [ "$CURRENT" -eq 3 ]; then
     scripts=("${(@f)$(command termcode complete scripts "${words[2]}" 2>/dev/null)}")
+    compadd run
     compadd -a scripts
+    compadd -a runners
     return
   fi
 
   case "${words[3]:-}" in
     bun|pnpm|npm|yarn)
       if [ "$CURRENT" -eq 4 ]; then
-        compadd run
+        compadd -a runner_exec_commands
         return
       fi
       if [ "$CURRENT" -eq 5 ] && [ "${words[4]:-}" = "run" ]; then
+        scripts=("${(@f)$(command termcode complete scripts "${words[2]}" 2>/dev/null)}")
+        compadd -a scripts
+        return
+      fi
+      ;;
+    run)
+      if [ "$CURRENT" -eq 4 ]; then
         scripts=("${(@f)$(command termcode complete scripts "${words[2]}" 2>/dev/null)}")
         compadd -a scripts
         return

@@ -14,6 +14,6 @@ Track the technical shape of the CLI.
 - Resolver: scan configured roots at runtime
 - Project rule: direct child folder containing `package.json`
 - Duplicate handling: report ambiguous callable names instead of choosing one implicitly.
-- Runner: use explicit command runner (`termcode <project> bun run <script>`) or configured Preferred Runner (`bun`, `pnpm`, `npm`, `yarn`, or `none`).
+- Runner: use configured Preferred Runner (`bun`, `pnpm`, `npm`, `yarn`, or `none`), explicit Preferred Runner script form (`termcode <project> run <script>`), explicit one-off script runner (`termcode <project> bun run <script>`), or package-manager commands (`termcode <project> bun install`).
 - Onboarding: plain `termcode` starts setup until `onboarded` exists; `--help` and other commands do not trigger onboarding.
 - Jump workflow: `termcode path <project>` and plain `termcode <project>` print the resolved path; `termcode init zsh` prints shell integration for real `cd` jumps.
