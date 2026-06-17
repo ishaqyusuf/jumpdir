@@ -6,11 +6,11 @@ COMMAND="${JUMPDIR_COMMAND_NAME:-${TERMCODE_COMMAND_NAME:-$(basename "$0")}}"
 DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir"
 LEGACY_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/termcode"
 CONFIG_DIR="${JUMPDIR_CONFIG_DIR:-${TERMCODE_CONFIG_DIR:-}}"
+MIGRATE_LEGACY_CONFIG=0
 if [ -z "$CONFIG_DIR" ]; then
-  if [ -d "$LEGACY_CONFIG_DIR" ] && [ ! -d "$DEFAULT_CONFIG_DIR" ]; then
-    CONFIG_DIR="$LEGACY_CONFIG_DIR"
-  else
-    CONFIG_DIR="$DEFAULT_CONFIG_DIR"
+  CONFIG_DIR="$DEFAULT_CONFIG_DIR"
+  if [ -d "$LEGACY_CONFIG_DIR" ] && [ ! -e "$DEFAULT_CONFIG_DIR" ]; then
+    MIGRATE_LEGACY_CONFIG=1
   fi
 fi
 ROOTS_FILE="$CONFIG_DIR/roots"
@@ -71,6 +71,12 @@ usage_error() {
 }
 
 ensure_config_dir() {
+  if [ "$MIGRATE_LEGACY_CONFIG" = "1" ] && [ -d "$LEGACY_CONFIG_DIR" ] && [ ! -e "$DEFAULT_CONFIG_DIR" ]; then
+    mkdir -p "$(dirname "$DEFAULT_CONFIG_DIR")"
+    cp -R "$LEGACY_CONFIG_DIR" "$DEFAULT_CONFIG_DIR"
+    printf 'Migrated config from termcode to jumpdir.\n' >&2
+  fi
+
   mkdir -p "$CONFIG_DIR"
   [ -f "$ROOTS_FILE" ] || : > "$ROOTS_FILE"
   [ -f "$ALIASES_FILE" ] || : > "$ALIASES_FILE"

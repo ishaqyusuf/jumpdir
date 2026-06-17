@@ -39,7 +39,7 @@ Aliases created by `jumpdir rename` are saved to `aliases` in the same directory
 
 `termcode` remains available as a compatibility command. The installer adds both `jumpdir` and `termcode`, and existing `TERMCODE_*` environment variables still work as fallbacks for the new `JUMPDIR_*` names.
 
-If you already have `~/.config/termcode` and no `~/.config/jumpdir`, `jumpdir` will keep using the existing config so your roots, aliases, and runner preference continue to work.
+If you already have `~/.config/termcode` and no `~/.config/jumpdir`, `jumpdir` copies the old config into `~/.config/jumpdir` on first use. The old `termcode` config folder is left in place as a backup.
 
 ## First Run
 
