@@ -8,8 +8,8 @@ Track the concise system description.
 - Keep this file implementation-oriented.
 
 ## Template
-- Name: termcode
+- Name: jumpdir
 - Type: macOS CLI
 - Primary job: discover local repos, jump to project paths, and run package scripts by name.
-- Storage: local config under `${XDG_CONFIG_HOME:-$HOME/.config}/termcode/`.
+- Storage: local config under `${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir/`.
 - Setup: first-run onboarding stores roots, Preferred Runner, and an onboarding marker.

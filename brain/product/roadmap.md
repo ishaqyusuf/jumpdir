@@ -9,9 +9,9 @@ Track product milestones.
 
 ## Milestones
 - Done: Scaffold repo and Brain.
-- Done: Implement config storage and `termcode set`.
-- Done: Implement project discovery and `termcode ls`.
-- Done: Implement aliases with `termcode rename`.
+- Done: Implement config storage and `jumpdir set`.
+- Done: Implement project discovery and `jumpdir ls`.
+- Done: Implement aliases with `jumpdir rename`.
 - Done: Implement open commands.
 - Done: Implement package script runner.
 - Done: Add installer polish and Homebrew formula preparation.

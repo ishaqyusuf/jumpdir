@@ -1,0 +1,1226 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="0.3.0"
+COMMAND="${JUMPDIR_COMMAND_NAME:-${TERMCODE_COMMAND_NAME:-$(basename "$0")}}"
+DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir"
+LEGACY_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/termcode"
+CONFIG_DIR="${JUMPDIR_CONFIG_DIR:-${TERMCODE_CONFIG_DIR:-}}"
+if [ -z "$CONFIG_DIR" ]; then
+  if [ -d "$LEGACY_CONFIG_DIR" ] && [ ! -d "$DEFAULT_CONFIG_DIR" ]; then
+    CONFIG_DIR="$LEGACY_CONFIG_DIR"
+  else
+    CONFIG_DIR="$DEFAULT_CONFIG_DIR"
+  fi
+fi
+ROOTS_FILE="$CONFIG_DIR/roots"
+ALIASES_FILE="$CONFIG_DIR/aliases"
+RUNNER_FILE="$CONFIG_DIR/runner"
+ONBOARDED_FILE="$CONFIG_DIR/onboarded"
+UPDATE_CHECK_FILE="$CONFIG_DIR/update-check"
+REPO_OWNER="${JUMPDIR_REPO_OWNER:-${TERMCODE_REPO_OWNER:-ishaqyusuf}}"
+REPO_NAME="${JUMPDIR_REPO_NAME:-${TERMCODE_REPO_NAME:-jumpdir}}"
+REF="${JUMPDIR_REF:-${TERMCODE_REF:-main}}"
+SOURCE_URL="${JUMPDIR_SOURCE_URL:-${TERMCODE_SOURCE_URL:-https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/bin/jumpdir}}"
+INSTALLER_URL="${JUMPDIR_INSTALLER_URL:-${TERMCODE_INSTALLER_URL:-https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/install.sh}}"
+
+usage() {
+  cat <<EOF
+$COMMAND - jump into and run scripts for local repos
+
+Usage:
+  $COMMAND                              Start first-run onboarding
+  $COMMAND set <paths...>              Save project search roots
+  $COMMAND ls                          List discovered projects
+  $COMMAND runner get                  Show preferred runner
+  $COMMAND runner set <runner|none>    Set preferred runner
+  $COMMAND runner clear                Clear preferred runner
+  $COMMAND update                      Check for a newer $COMMAND version
+  $COMMAND rename <name-or-path> <as>  Create a callable alias
+  $COMMAND path <project>              Print project path
+  $COMMAND cd <project>                Print project path, or cd with shell integration
+  $COMMAND init zsh                    Print zsh jump integration
+  $COMMAND open <project>              Open project folder in Finder
+  $COMMAND . <project>                 Open project folder in VS Code
+  $COMMAND <project>                   Print project path
+  $COMMAND <project> ?|help            Show project commands and scripts
+  $COMMAND <project> <script> [args...]                 Run with preferred runner
+  $COMMAND <project> run <script> [args...]             Run with preferred runner
+  $COMMAND <project> <runner> run <script> [args...]    Run with explicit runner
+  $COMMAND <project> <runner> <command> [args...]       Run package manager command
+  $COMMAND --help                      Show help
+  $COMMAND --version                   Show version
+
+Preferred runners:
+  bun, pnpm, npm, yarn, none
+
+Config:
+  $CONFIG_DIR
+EOF
+}
+
+die() {
+  printf '%s: %s\n' "$COMMAND" "$*" >&2
+  exit 1
+}
+
+usage_error() {
+  printf '%s: %s\n\n' "$COMMAND" "$*" >&2
+  usage >&2
+  exit 64
+}
+
+ensure_config_dir() {
+  mkdir -p "$CONFIG_DIR"
+  [ -f "$ROOTS_FILE" ] || : > "$ROOTS_FILE"
+  [ -f "$ALIASES_FILE" ] || : > "$ALIASES_FILE"
+}
+
+expand_path() {
+  case "$1" in
+    "~") printf '%s\n' "$HOME" ;;
+    "~/"*) printf '%s/%s\n' "$HOME" "${1#"~/"}" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+canonical_dir() {
+  local input expanded
+  input="$1"
+  expanded="$(expand_path "$input")"
+  [ -d "$expanded" ] || die "directory does not exist: $input"
+  (cd "$expanded" && pwd -P)
+}
+
+basename_of() {
+  local path
+  path="${1%/}"
+  printf '%s\n' "${path##*/}"
+}
+
+has_package_json() {
+  [ -f "$1/package.json" ]
+}
+
+supports_color() {
+  [ -t 2 ] || return 1
+  [ -z "${NO_COLOR:-}" ] || return 1
+  [ "${TERM:-}" != "dumb" ] || return 1
+}
+
+style_project_name() {
+  if supports_color; then
+    printf '\033[36m%s\033[0m' "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+style_script_badge() {
+  if supports_color; then
+    printf '\033[30;47m %s \033[0m' "$1"
+  else
+    printf '[%s]' "$1"
+  fi
+}
+
+validate_alias() {
+  case "$1" in
+    ""|*/*|*[[:space:]]*)
+      die "alias must be a non-empty name without slashes or whitespace"
+      ;;
+  esac
+}
+
+is_runner() {
+  case "$1" in
+    bun|pnpm|npm|yarn) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_runner_preference() {
+  case "$1" in
+    bun|pnpm|npm|yarn|none) ;;
+    *) die "preferred runner must be bun, pnpm, npm, yarn, or none" ;;
+  esac
+}
+
+get_runner_preference() {
+  local runner
+  if [ ! -f "$RUNNER_FILE" ]; then
+    printf 'none\n'
+    return 0
+  fi
+
+  runner="$(sed -n '1p' "$RUNNER_FILE")"
+  case "$runner" in
+    bun|pnpm|npm|yarn) printf '%s\n' "$runner" ;;
+    *) printf 'none\n' ;;
+  esac
+}
+
+set_runner_preference() {
+  [ "$#" -eq 1 ] || usage_error "runner set requires bun, pnpm, npm, yarn, or none"
+  ensure_config_dir
+  validate_runner_preference "$1"
+  printf '%s\n' "$1" > "$RUNNER_FILE"
+  if [ "$1" = "none" ]; then
+    printf 'Preferred runner cleared.\n'
+  else
+    printf 'Preferred runner set to %s run.\n' "$1"
+  fi
+}
+
+runner_command() {
+  local subcommand
+  subcommand="${1:-}"
+
+  case "$subcommand" in
+    get)
+      shift
+      [ "$#" -eq 0 ] || usage_error "runner get does not accept arguments"
+      printf '%s\n' "$(get_runner_preference)"
+      ;;
+    set)
+      shift
+      set_runner_preference "$@"
+      ;;
+    clear)
+      shift
+      [ "$#" -eq 0 ] || usage_error "runner clear does not accept arguments"
+      set_runner_preference none
+      ;;
+    *)
+      usage_error "runner requires get, set, or clear"
+      ;;
+  esac
+}
+
+fetch_latest_version() {
+  local source version
+  command -v curl >/dev/null 2>&1 || die "curl is required to check for updates"
+
+  if ! source="$(curl -fsSL "$SOURCE_URL")"; then
+    die "could not fetch latest version from $SOURCE_URL"
+  fi
+
+  version="$(printf '%s\n' "$source" | sed -n 's/^VERSION="\([^"]*\)".*/\1/p' | sed -n '1p')"
+  [ -n "$version" ] || die "could not read latest version from $SOURCE_URL"
+  printf '%s\n' "$version"
+}
+
+version_is_newer() {
+  awk -v latest="$1" -v current="$2" '
+    function normalize(version) {
+      sub(/^v/, "", version)
+      return version
+    }
+
+    BEGIN {
+      latest = normalize(latest)
+      current = normalize(current)
+      latest_count = split(latest, latest_parts, ".")
+      current_count = split(current, current_parts, ".")
+      max_count = latest_count > current_count ? latest_count : current_count
+
+      for (i = 1; i <= max_count; i += 1) {
+        latest_part = latest_parts[i] + 0
+        current_part = current_parts[i] + 0
+        if (latest_part > current_part) {
+          exit 0
+        }
+        if (latest_part < current_part) {
+          exit 1
+        }
+      }
+
+      exit 1
+    }
+  '
+}
+
+update_command() {
+  [ "$#" -eq 0 ] || usage_error "update does not accept arguments"
+
+  local latest_version
+  latest_version="$(fetch_latest_version)"
+
+  printf 'Current version: %s\n' "$VERSION"
+  printf 'Latest version:  %s\n' "$latest_version"
+
+  if version_is_newer "$latest_version" "$VERSION"; then
+    printf '\nA newer %s version is available.\n' "$COMMAND"
+    printf 'Update with:\n'
+    printf '  curl -fsSL %s | bash\n' "$INSTALLER_URL"
+  else
+    printf '\n%s is up to date.\n' "$COMMAND"
+  fi
+}
+
+today() {
+  date '+%Y-%m-%d'
+}
+
+mark_update_checked() {
+  ensure_config_dir
+  today > "$UPDATE_CHECK_FILE"
+}
+
+has_checked_update_today() {
+  [ -f "$UPDATE_CHECK_FILE" ] || return 1
+  [ "$(sed -n '1p' "$UPDATE_CHECK_FILE")" = "$(today)" ]
+}
+
+should_skip_daily_update_check() {
+  case "${1:-}" in
+    complete|update|init|-h|--help|-v|--version) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+can_prompt_for_update() {
+  [ "${JUMPDIR_FORCE_UPDATE_CHECK:-${TERMCODE_FORCE_UPDATE_CHECK:-}}" = "1" ] && return 0
+  [ -t 0 ] && [ -t 2 ]
+}
+
+run_installer_update() {
+  local install_dir
+  install_dir="$(dirname "$(binary_path)")"
+  curl -fsSL "$INSTALLER_URL" | JUMPDIR_INSTALL_DIR="$install_dir" bash
+}
+
+daily_update_check() {
+  should_skip_daily_update_check "${1:-}" && return 0
+  [ "${JUMPDIR_DISABLE_UPDATE_CHECK:-${TERMCODE_DISABLE_UPDATE_CHECK:-}}" = "1" ] && return 0
+  can_prompt_for_update || return 0
+  has_checked_update_today && return 0
+
+  local latest_version answer
+  mark_update_checked
+
+  if ! latest_version="$(fetch_latest_version 2>/dev/null)"; then
+    return 0
+  fi
+
+  if ! version_is_newer "$latest_version" "$VERSION"; then
+    return 0
+  fi
+
+  cat >&2 <<EOF
+$COMMAND update available.
+Current version: $VERSION
+Latest version:  $latest_version
+EOF
+  printf 'Update now? [Y/n] ' >&2
+  IFS= read -r answer || answer="n"
+
+  case "$answer" in
+    n|N|no|No|NO) return 0 ;;
+  esac
+
+  if ! run_installer_update; then
+    printf '%s: update failed. You can update manually with:\n' "$COMMAND" >&2
+    printf '  curl -fsSL %s | bash\n' "$INSTALLER_URL" >&2
+  fi
+}
+
+has_completed_onboarding() {
+  [ -f "$ONBOARDED_FILE" ]
+}
+
+has_configured_roots() {
+  [ -f "$ROOTS_FILE" ] && grep -q '[^[:space:]]' "$ROOTS_FILE"
+}
+
+should_start_onboarding() {
+  if has_completed_onboarding; then
+    return 1
+  fi
+
+  if [ ! -d "$CONFIG_DIR" ]; then
+    return 0
+  fi
+
+  if ! has_configured_roots; then
+    return 0
+  fi
+
+  return 1
+}
+
+mark_onboarding_complete() {
+  ensure_config_dir
+  date '+%Y-%m-%dT%H:%M:%S%z' > "$ONBOARDED_FILE"
+}
+
+set_roots() {
+  [ "$#" -gt 0 ] || usage_error "set requires at least one path"
+  ensure_config_dir
+
+  local tmp root canonical count
+  tmp="$ROOTS_FILE.tmp.$$"
+  : > "$tmp"
+  for root in "$@"; do
+    canonical="$(canonical_dir "$root")"
+    if ! grep -Fxq "$canonical" "$tmp"; then
+      printf '%s\n' "$canonical" >> "$tmp"
+    fi
+  done
+
+  mv "$tmp" "$ROOTS_FILE"
+  count="$(wc -l < "$ROOTS_FILE" | tr -d ' ')"
+  printf 'Saved %s project root%s.\n' "$count" "$(if [ "$count" -eq 1 ]; then printf ''; else printf 's'; fi)"
+}
+
+add_roots() {
+  [ "$#" -gt 0 ] || return 0
+  ensure_config_dir
+
+  local tmp root canonical
+  tmp="$ROOTS_FILE.tmp.$$"
+  cat "$ROOTS_FILE" > "$tmp"
+  for root in "$@"; do
+    canonical="$(canonical_dir "$root")"
+    if ! grep -Fxq "$canonical" "$tmp"; then
+      printf '%s\n' "$canonical" >> "$tmp"
+    fi
+  done
+  mv "$tmp" "$ROOTS_FILE"
+}
+
+iter_projects() {
+  [ -f "$ROOTS_FILE" ] || return 0
+
+  local root child name
+  while IFS= read -r root || [ -n "$root" ]; do
+    [ -n "$root" ] || continue
+    [ -d "$root" ] || continue
+    for child in "$root"/*; do
+      [ -d "$child" ] || continue
+      has_package_json "$child" || continue
+      name="$(basename_of "$child")"
+      printf '%s\t%s\n' "$name" "$(canonical_dir "$child")"
+    done
+  done < "$ROOTS_FILE"
+}
+
+iter_aliases() {
+  [ -f "$ALIASES_FILE" ] || return 0
+
+  local alias path
+  while IFS="$(printf '\t')" read -r alias path || [ -n "${alias:-}" ]; do
+    [ -n "${alias:-}" ] || continue
+    [ -n "${path:-}" ] || continue
+    [ -d "$path" ] || continue
+    has_package_json "$path" || continue
+    printf '%s\t%s\n' "$alias" "$(canonical_dir "$path")"
+  done < "$ALIASES_FILE"
+}
+
+iter_callables() {
+  iter_projects
+  iter_aliases
+}
+
+duplicate_report() {
+  iter_callables | awk -F '\t' -v command="$COMMAND" '
+    {
+      key = $1
+      path = $2
+      if (seen[key, path] == 0) {
+        seen[key, path] = 1
+        count[key] += 1
+        paths[key] = paths[key] sprintf("  %s\n", path)
+      }
+    }
+    END {
+      duplicates = 0
+      for (key in count) {
+        if (count[key] > 1) {
+          duplicates += 1
+            printf "%s: duplicate project name \"%s\":\n%s", command, key, paths[key]
+        }
+      }
+      if (duplicates == 0) {
+        exit 0
+      }
+      exit 1
+    }
+  '
+}
+
+detect_duplicates() {
+  local report
+  if report="$(duplicate_report)"; then
+    return 0
+  fi
+
+  printf '%s\n' "$report" >&2
+  return 1
+}
+
+list_projects() {
+  ensure_config_dir
+
+  if ! detect_duplicates; then
+    exit 65
+  fi
+
+  iter_callables | sort -f -u -t "$(printf '\t')" -k1,1 | awk -F '\t' '{ printf "%-24s %s\n", $1, $2 }'
+}
+
+project_names() {
+  iter_callables | sort -f -u -t "$(printf '\t')" -k1,1 | awk -F '\t' '{ print $1 }'
+}
+
+print_project_summary() {
+  local count report
+  count="$(project_names | wc -l | tr -d ' ')"
+  printf '\nFound %s project%s:\n' "$count" "$(if [ "$count" -eq 1 ]; then printf ''; else printf 's'; fi)"
+  if [ "$count" -gt 0 ]; then
+    project_names | sed 's/^/  /'
+  fi
+
+  if ! report="$(duplicate_report)"; then
+    printf '\nSome project names are duplicated.\n'
+    printf '%s\n' "$report"
+    printf 'Use `%s rename <name-or-path> <alias>` after setup to disambiguate.\n' "$COMMAND"
+  fi
+}
+
+resolve_path_input() {
+  local input path
+  input="$1"
+  path="$(expand_path "$input")"
+  if [ -d "$path" ]; then
+    path="$(canonical_dir "$path")"
+    if has_package_json "$path"; then
+      printf '%s\n' "$path"
+      return 0
+    fi
+    die "not a package project: $input"
+  fi
+  return 1
+}
+
+resolve_project() {
+  local query matches tmp path count
+  query="$1"
+  ensure_config_dir
+
+  if resolve_path_input "$query"; then
+    return 0
+  fi
+
+  tmp="$CONFIG_DIR/.matches.$$"
+  : > "$tmp"
+
+  iter_callables | awk -F '\t' -v query="$query" '$1 == query { print $2 }' | sort -u > "$tmp"
+  count="$(wc -l < "$tmp" | tr -d ' ')"
+
+  case "$count" in
+    0)
+      rm -f "$tmp"
+      printf '%s: project not found: %s\n\n' "$COMMAND" "$query" >&2
+      usage >&2
+      exit 64
+      ;;
+    1)
+      path="$(sed -n '1p' "$tmp")"
+      rm -f "$tmp"
+      printf '%s\n' "$path"
+      ;;
+    *)
+      printf '%s: ambiguous project name "%s":\n' "$COMMAND" "$query" >&2
+      while IFS= read -r matches; do
+        printf '  %s\n' "$matches" >&2
+      done < "$tmp"
+      rm -f "$tmp"
+      exit 65
+      ;;
+  esac
+}
+
+resolve_project_quiet() {
+  local query expanded tmp path count
+  query="$1"
+  ensure_config_dir
+
+  expanded="$(expand_path "$query")"
+  if [ -d "$expanded" ] && has_package_json "$expanded"; then
+    (cd "$expanded" && pwd -P)
+    return 0
+  fi
+
+  tmp="$CONFIG_DIR/.matches.$$"
+  : > "$tmp"
+
+  iter_callables | awk -F '\t' -v query="$query" '$1 == query { print $2 }' | sort -u > "$tmp"
+  count="$(wc -l < "$tmp" | tr -d ' ')"
+
+  if [ "$count" -eq 1 ]; then
+    path="$(sed -n '1p' "$tmp")"
+    rm -f "$tmp"
+    printf '%s\n' "$path"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  return 1
+}
+
+alias_conflicts() {
+  local alias target conflicts
+  alias="$1"
+  target="$2"
+  conflicts="$(iter_callables | awk -F '\t' -v alias="$alias" -v target="$target" '$1 == alias && $2 != target { print $2 }' | sort -u)"
+  [ -z "$conflicts" ]
+}
+
+rename_project() {
+  [ "$#" -eq 2 ] || usage_error "rename requires a project and a new alias"
+  ensure_config_dir
+
+  local target new_alias tmp alias path
+  target="$(resolve_project "$1")"
+  new_alias="$2"
+  validate_alias "$new_alias"
+
+  if ! alias_conflicts "$new_alias" "$target"; then
+    die "alias conflicts with another project: $new_alias"
+  fi
+
+  tmp="$ALIASES_FILE.tmp.$$"
+  : > "$tmp"
+  while IFS="$(printf '\t')" read -r alias path || [ -n "${alias:-}" ]; do
+    [ -n "${alias:-}" ] || continue
+    [ -n "${path:-}" ] || continue
+    [ "$alias" = "$new_alias" ] && continue
+    [ "$path" = "$target" ] && continue
+    printf '%s\t%s\n' "$alias" "$path" >> "$tmp"
+  done < "$ALIASES_FILE"
+  printf '%s\t%s\n' "$new_alias" "$target" >> "$tmp"
+  mv "$tmp" "$ALIASES_FILE"
+
+  printf 'Renamed %s to %s.\n' "$(basename_of "$target")" "$new_alias"
+}
+
+open_project() {
+  [ "$#" -eq 1 ] || usage_error "open requires a project"
+  local target
+  target="$(resolve_project "$1")"
+  command open "$target"
+}
+
+code_project() {
+  [ "$#" -eq 1 ] || usage_error ". requires a project"
+  local target
+  target="$(resolve_project "$1")"
+  if command -v code >/dev/null 2>&1; then
+    command code "$target"
+  else
+    command open -a "Visual Studio Code" "$target"
+  fi
+}
+
+path_project() {
+  [ "$#" -eq 1 ] || usage_error "path requires a project"
+  resolve_project "$1"
+}
+
+cd_project() {
+  [ "$#" -eq 1 ] || usage_error "cd requires a project"
+  resolve_project "$1"
+}
+
+package_scripts() {
+  local target package_json
+  target="$1"
+  package_json="$target/package.json"
+  [ -f "$package_json" ] || return 1
+
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+const fs = require("fs");
+const file = process.argv[1];
+let pkg;
+try {
+  pkg = JSON.parse(fs.readFileSync(file, "utf8"));
+} catch {
+  process.exit(1);
+}
+const scripts = pkg && pkg.scripts;
+if (!scripts || typeof scripts !== "object" || Array.isArray(scripts)) {
+  process.exit(0);
+}
+for (const name of Object.keys(scripts)) {
+  console.log(name);
+}
+' "$package_json"
+    return $?
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '.scripts | objects | keys_unsorted[]?' "$package_json" 2>/dev/null
+    return $?
+  fi
+
+  return 1
+}
+
+script_exists_in_list() {
+  local script scripts candidate
+  script="$1"
+  scripts="$2"
+
+  while IFS= read -r candidate || [ -n "$candidate" ]; do
+    [ "$candidate" = "$script" ] && return 0
+  done <<EOF
+$scripts
+EOF
+
+  return 1
+}
+
+print_script_suggestions() {
+  local project scripts project_label script first
+  project="$1"
+  scripts="$2"
+  project_label="$(style_project_name "$project")"
+
+  if [ -z "$scripts" ]; then
+    printf 'No package scripts were found for project "%s".\n' "$project_label" >&2
+    return 0
+  fi
+
+  printf 'Here are the available script names on your project "%s":\n' "$project_label" >&2
+  first=1
+  while IFS= read -r script || [ -n "$script" ]; do
+    [ -n "$script" ] || continue
+    if [ "$first" -eq 1 ]; then
+      first=0
+    else
+      printf ' ' >&2
+    fi
+    style_script_badge "$script" >&2
+  done <<EOF
+$scripts
+EOF
+  printf '\n' >&2
+}
+
+print_interactive_project_help() {
+  local project target scripts
+  project="$1"
+  target="$2"
+  [ -t 2 ] || return 0
+
+  if scripts="$(package_scripts "$target")"; then
+    printf '\n' >&2
+    print_script_suggestions "$project" "$scripts"
+  fi
+}
+
+print_project_commands() {
+  local project target scripts script
+  project="$1"
+  target="$2"
+
+  printf '%s\n\n' "$target"
+  printf 'Available commands for %s:\n' "$project"
+  printf '  %s %s\n' "$COMMAND" "$project"
+  printf '  %s cd %s\n' "$COMMAND" "$project"
+  printf '  %s path %s\n' "$COMMAND" "$project"
+  printf '  %s open %s\n' "$COMMAND" "$project"
+  printf '  %s . %s\n' "$COMMAND" "$project"
+
+  if scripts="$(package_scripts "$target")" && [ -n "$scripts" ]; then
+    printf '\nScripts:\n'
+    while IFS= read -r script || [ -n "$script" ]; do
+      [ -n "$script" ] || continue
+      printf '  %s %s %s\n' "$COMMAND" "$project" "$script"
+      printf '  %s %s run %s\n' "$COMMAND" "$project" "$script"
+    done <<EOF
+$scripts
+EOF
+  else
+    printf '\nScripts:\n'
+    printf '  No package scripts found.\n'
+  fi
+
+  printf '\nPackage manager commands:\n'
+  printf '  %s %s bun install\n' "$COMMAND" "$project"
+  printf '  %s %s pnpm add <package>\n' "$COMMAND" "$project"
+}
+
+validate_script_or_exit() {
+  local project target script scripts
+  project="$1"
+  target="$2"
+  script="$3"
+
+  if ! scripts="$(package_scripts "$target")"; then
+    return 0
+  fi
+
+  if script_exists_in_list "$script" "$scripts"; then
+    return 0
+  fi
+
+  printf '%s: script not found: %s\n\n' "$COMMAND" "$script" >&2
+  print_script_suggestions "$project" "$scripts"
+  exit 64
+}
+
+complete_command() {
+  local subcommand target
+  subcommand="${1:-}"
+
+  case "$subcommand" in
+    projects)
+      shift
+      [ "$#" -eq 0 ] || return 0
+      project_names
+      ;;
+    scripts)
+      shift
+      [ "$#" -eq 1 ] || return 0
+      target="$(resolve_project_quiet "$1")" || return 0
+      package_scripts "$target" || return 0
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+shell_single_quote() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+binary_path() {
+  local invoked dir base resolved
+  invoked="$0"
+
+  case "$invoked" in
+    */*)
+      dir="${invoked%/*}"
+      base="${invoked##*/}"
+      resolved="$(cd "$dir" && pwd -P)"
+      printf '%s/%s\n' "$resolved" "$base"
+      ;;
+    *)
+      command -v "$invoked" 2>/dev/null || printf '%s\n' "$invoked"
+      ;;
+  esac
+}
+
+missing_runner_message() {
+  local project script
+  project="$1"
+  script="$2"
+  cat >&2 <<EOF
+$COMMAND: no preferred runner is set.
+
+Choose one:
+  $COMMAND runner set bun
+  $COMMAND runner set pnpm
+  $COMMAND runner set npm
+  $COMMAND runner set yarn
+
+Or provide one for this command:
+  $COMMAND $project bun run $script
+  $COMMAND $project run $script
+EOF
+  exit 64
+}
+
+run_with_runner() {
+  local target runner script
+  target="$1"
+  runner="$2"
+  script="$3"
+  shift 3
+
+  printf 'Running %s via %s run in %s\n' "$script" "$runner" "$target" >&2
+  if [ "$#" -gt 0 ]; then
+    (cd "$target" && command "$runner" run "$script" -- "$@")
+  else
+    (cd "$target" && command "$runner" run "$script")
+  fi
+}
+
+run_package_manager_command() {
+  local target runner subcommand
+  target="$1"
+  runner="$2"
+  subcommand="$3"
+  shift 3
+
+  printf 'Running %s %s in %s\n' "$runner" "$subcommand" "$target" >&2
+  (cd "$target" && command "$runner" "$subcommand" "$@")
+}
+
+run_project_command() {
+  [ "$#" -ge 1 ] || usage_error "project command requires a project"
+
+  local project target runner script subcommand
+  project="$1"
+  target="$(resolve_project "$project")"
+
+  if [ "$#" -eq 1 ]; then
+    printf '%s\n' "$target"
+    print_interactive_project_help "$project" "$target"
+    return 0
+  fi
+
+  if [ "$2" = "?" ] || [ "$2" = "help" ]; then
+    [ "$#" -eq 2 ] || usage_error "$2 does not accept arguments"
+    print_project_commands "$project" "$target"
+    return 0
+  fi
+
+  if [ "$2" = "run" ]; then
+    [ "$#" -ge 3 ] || usage_error "run requires a script"
+    script="$3"
+    shift 3
+    validate_script_or_exit "$project" "$target" "$script"
+    runner="$(get_runner_preference)"
+    if [ "$runner" = "none" ]; then
+      missing_runner_message "$project" "$script"
+    fi
+    run_with_runner "$target" "$runner" "$script" "$@"
+    return 0
+  fi
+
+  if is_runner "$2"; then
+    runner="$2"
+    [ "$#" -ge 3 ] || usage_error "$runner requires a command"
+    subcommand="$3"
+
+    if [ "$subcommand" = "run" ]; then
+      [ "$#" -ge 4 ] || usage_error "$runner run requires a script"
+      script="$4"
+      shift 4
+      validate_script_or_exit "$project" "$target" "$script"
+      run_with_runner "$target" "$runner" "$script" "$@"
+    else
+      shift 3
+      run_package_manager_command "$target" "$runner" "$subcommand" "$@"
+    fi
+    return 0
+  fi
+
+  script="$2"
+  shift 2
+  validate_script_or_exit "$project" "$target" "$script"
+  runner="$(get_runner_preference)"
+  if [ "$runner" = "none" ]; then
+    missing_runner_message "$project" "$script"
+  fi
+
+  run_with_runner "$target" "$runner" "$script" "$@"
+}
+
+print_zsh_init() {
+  local shell_command
+  shell_command="$COMMAND"
+
+  printf '__jumpdir_bin=(bash '
+  shell_single_quote "$(binary_path)"
+  printf ')\n\n'
+
+  printf '_%s() {\n' "$shell_command"
+  cat <<'EOF'
+  local -a commands projects scripts runner_commands runner_exec_commands runner_preferences runners
+  commands=(set ls runner update rename path cd init open . --help --version)
+  runner_commands=(get set clear)
+  runner_exec_commands=(run install add remove update upgrade exec dlx)
+  runner_preferences=(bun pnpm npm yarn none)
+  runners=(bun pnpm npm yarn)
+
+  case "${words[2]:-}" in
+    runner)
+      if [ "$CURRENT" -eq 3 ]; then
+        compadd -a runner_commands
+        return
+      fi
+      if [ "$CURRENT" -eq 4 ] && [ "${words[3]:-}" = "set" ]; then
+        compadd -a runner_preferences
+        return
+      fi
+      return
+      ;;
+    open|.|path|cd)
+      if [ "$CURRENT" -eq 3 ]; then
+        projects=("${(@f)$("${__jumpdir_bin[@]}" complete projects 2>/dev/null)}")
+        compadd -a projects
+      fi
+      return
+      ;;
+    rename)
+      if [ "$CURRENT" -eq 3 ]; then
+        projects=("${(@f)$("${__jumpdir_bin[@]}" complete projects 2>/dev/null)}")
+        compadd -a projects
+      fi
+      return
+      ;;
+    init)
+      if [ "$CURRENT" -eq 3 ]; then
+        compadd zsh
+      fi
+      return
+      ;;
+    set|ls|update|-h|--help|-v|--version)
+      return
+      ;;
+  esac
+
+  if [ "$CURRENT" -eq 2 ]; then
+    projects=("${(@f)$("${__jumpdir_bin[@]}" complete projects 2>/dev/null)}")
+    compadd -a commands
+    compadd -a projects
+    return
+  fi
+
+  if [ "$CURRENT" -eq 3 ]; then
+    scripts=("${(@f)$("${__jumpdir_bin[@]}" complete scripts "${words[2]}" 2>/dev/null)}")
+    compadd run
+    compadd -a scripts
+    compadd -a runners
+    return
+  fi
+
+  case "${words[3]:-}" in
+    bun|pnpm|npm|yarn)
+      if [ "$CURRENT" -eq 4 ]; then
+        compadd -a runner_exec_commands
+        return
+      fi
+      if [ "$CURRENT" -eq 5 ] && [ "${words[4]:-}" = "run" ]; then
+        scripts=("${(@f)$("${__jumpdir_bin[@]}" complete scripts "${words[2]}" 2>/dev/null)}")
+        compadd -a scripts
+        return
+      fi
+      ;;
+    run)
+      if [ "$CURRENT" -eq 4 ]; then
+        scripts=("${(@f)$("${__jumpdir_bin[@]}" complete scripts "${words[2]}" 2>/dev/null)}")
+        compadd -a scripts
+        return
+      fi
+      ;;
+  esac
+}
+
+if command -v compdef >/dev/null 2>&1; then
+EOF
+  printf '  compdef _%s %s\n' "$shell_command" "$shell_command"
+  cat <<'EOF'
+fi
+
+EOF
+  printf '%s() {\n' "$shell_command"
+  cat <<'EOF'
+  case "${1:-}" in
+    ""|-h|--help|-v|--version|set|ls|runner|update|complete|rename|path|init|open|.)
+      "${__jumpdir_bin[@]}" "$@"
+      ;;
+    cd)
+      if [ "$#" -eq 2 ]; then
+        local __jumpdir_path
+        __jumpdir_path="$("${__jumpdir_bin[@]}" path "$2")" || return
+        cd "$__jumpdir_path" || return
+      else
+        "${__jumpdir_bin[@]}" "$@"
+      fi
+      ;;
+    *)
+      if [ "$#" -eq 1 ]; then
+        local __jumpdir_path
+        __jumpdir_path="$("${__jumpdir_bin[@]}" path "$1")" || return
+        cd "$__jumpdir_path" || return
+      else
+        "${__jumpdir_bin[@]}" "$@"
+      fi
+      ;;
+  esac
+}
+EOF
+}
+
+init_command() {
+  local shell_name
+  shell_name="${1:-}"
+  case "$shell_name" in
+    zsh)
+      shift
+      [ "$#" -eq 0 ] || usage_error "init zsh does not accept extra arguments"
+      print_zsh_init
+      ;;
+    *)
+      usage_error "init currently supports zsh"
+      ;;
+  esac
+}
+
+prompt_runner_choice() {
+  local choice runner
+  while true; do
+    cat <<'EOF'
+Step 1: Choose your preferred runner
+  1. bun run
+  2. pnpm run
+  3. npm run
+  4. yarn run
+  5. none
+
+Enter choice [1-5]:
+EOF
+    IFS= read -r choice || exit 1
+    case "$choice" in
+      1|bun|bun\ run) runner="bun" ;;
+      2|pnpm|pnpm\ run) runner="pnpm" ;;
+      3|npm|npm\ run) runner="npm" ;;
+      4|yarn|yarn\ run) runner="yarn" ;;
+      5|none|"") runner="none" ;;
+      *)
+        printf 'Please choose 1, 2, 3, 4, or 5.\n\n'
+        continue
+        ;;
+    esac
+    set_runner_preference "$runner"
+    printf '\n'
+    break
+  done
+}
+
+prompt_project_directories() {
+  local line choice
+  while true; do
+    cat <<'EOF'
+Step 2: Add project directories
+  Example: ~/Documents/code ~/Desktop/projects
+
+Enter one or more directories:
+EOF
+    IFS= read -r line || exit 1
+    if [ -z "$line" ]; then
+      printf 'Please enter at least one directory.\n\n'
+      continue
+    fi
+
+    # Intentional shell word splitting so users can paste multiple paths.
+    # Paths containing spaces can be added later with the set command.
+    # shellcheck disable=SC2086
+    add_roots $line
+    print_project_summary
+
+    cat <<'EOF'
+
+What next?
+  1. Add another directory
+  2. Proceed
+
+Enter choice [1-2]:
+EOF
+    IFS= read -r choice || exit 1
+    case "$choice" in
+      1) printf '\n'; continue ;;
+      2|"") break ;;
+      *) printf 'Proceeding.\n'; break ;;
+    esac
+  done
+}
+
+run_onboarding() {
+  ensure_config_dir
+  cat <<EOF
+Welcome to $COMMAND.
+
+This setup will choose your preferred runner and add the folders where your repos live.
+
+EOF
+  prompt_runner_choice
+  prompt_project_directories
+  mark_onboarding_complete
+  cat <<EOF
+
+Setup complete.
+Try:
+  $COMMAND ls
+  $COMMAND <project>
+  $COMMAND <project> <script>
+EOF
+}
+
+main() {
+  daily_update_check "$@"
+
+  case "${1:-}" in
+    "")
+      if should_start_onboarding; then
+        run_onboarding
+      else
+        usage
+      fi
+      ;;
+    -h|--help)
+      usage
+      ;;
+    -v|--version)
+      printf '%s %s\n' "$COMMAND" "$VERSION"
+      ;;
+    set)
+      shift
+      set_roots "$@"
+      ;;
+    ls)
+      shift
+      [ "$#" -eq 0 ] || usage_error "ls does not accept arguments"
+      list_projects
+      ;;
+    runner)
+      shift
+      runner_command "$@"
+      ;;
+    update)
+      shift
+      update_command "$@"
+      ;;
+    complete)
+      shift
+      complete_command "$@"
+      ;;
+    rename)
+      shift
+      rename_project "$@"
+      ;;
+    path)
+      shift
+      path_project "$@"
+      ;;
+    cd)
+      shift
+      cd_project "$@"
+      ;;
+    init)
+      shift
+      init_command "$@"
+      ;;
+    open)
+      shift
+      open_project "$@"
+      ;;
+    .)
+      shift
+      code_project "$@"
+      ;;
+    *)
+      run_project_command "$@"
+      ;;
+  esac
+}
+
+main "$@"

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_OWNER="${TERMCODE_REPO_OWNER:-ishaqyusuf}"
-REPO_NAME="${TERMCODE_REPO_NAME:-termcode}"
-REF="${TERMCODE_REF:-main}"
-SOURCE_URL="${TERMCODE_SOURCE_URL:-https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/bin/termcode}"
-INSTALL_DIR="${TERMCODE_INSTALL_DIR:-$HOME/.local/bin}"
-INSTALL_BIN="$INSTALL_DIR/termcode"
+REPO_OWNER="${JUMPDIR_REPO_OWNER:-${TERMCODE_REPO_OWNER:-ishaqyusuf}}"
+REPO_NAME="${JUMPDIR_REPO_NAME:-${TERMCODE_REPO_NAME:-jumpdir}}"
+REF="${JUMPDIR_REF:-${TERMCODE_REF:-main}}"
+SOURCE_URL="${JUMPDIR_SOURCE_URL:-${TERMCODE_SOURCE_URL:-https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/bin/jumpdir}}"
+INSTALL_DIR="${JUMPDIR_INSTALL_DIR:-${TERMCODE_INSTALL_DIR:-$HOME/.local/bin}}"
+INSTALL_BIN="$INSTALL_DIR/jumpdir"
+COMPAT_BIN="$INSTALL_DIR/termcode"
 TMP_FILE=""
 
 permission_error() {
@@ -17,7 +18,7 @@ Use the default user install:
   curl -fsSL https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/install.sh | bash
 
 Or rerun with sudo for this install directory:
-  curl -fsSL https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/install.sh | sudo env TERMCODE_INSTALL_DIR="$INSTALL_DIR" bash
+  curl -fsSL https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/install.sh | sudo env JUMPDIR_INSTALL_DIR="$INSTALL_DIR" bash
 EOF
   exit 1
 }
@@ -35,8 +36,8 @@ local_source_bin() {
   [ -n "$source_path" ] || return 0
 
   source_dir="$(cd "$(dirname "$source_path")" 2>/dev/null && pwd -P || true)"
-  if [ -n "$source_dir" ] && [ -f "$source_dir/bin/termcode" ]; then
-    printf '%s\n' "$source_dir/bin/termcode"
+  if [ -n "$source_dir" ] && [ -f "$source_dir/bin/jumpdir" ]; then
+    printf '%s\n' "$source_dir/bin/jumpdir"
   fi
 }
 
@@ -58,28 +59,42 @@ download_source_bin() {
     exit 1
   }
 
-  TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/termcode.XXXXXX")"
+  TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/jumpdir.XXXXXX")"
   curl -fsSL "$SOURCE_URL" -o "$TMP_FILE"
   chmod +x "$TMP_FILE"
   printf '%s\n' "$TMP_FILE"
 }
 
+write_compat_bin() {
+  cat > "$COMPAT_BIN" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+export JUMPDIR_COMMAND_NAME="${JUMPDIR_COMMAND_NAME:-termcode}"
+exec bash "$SCRIPT_DIR/jumpdir" "$@"
+EOF
+  chmod 0755 "$COMPAT_BIN"
+}
+
 SOURCE_BIN="$(local_source_bin)"
 if [ -z "$SOURCE_BIN" ]; then
-  echo "Downloading termcode from $SOURCE_URL"
+  echo "Downloading jumpdir from $SOURCE_URL"
   SOURCE_BIN="$(download_source_bin)"
 fi
 
 ensure_install_dir
 install -m 0755 "$SOURCE_BIN" "$INSTALL_BIN"
+write_compat_bin
 
-echo "Installed termcode to $INSTALL_BIN"
+echo "Installed jumpdir to $INSTALL_BIN"
+echo "Installed termcode compatibility command to $COMPAT_BIN"
 "$INSTALL_BIN" --version
 
 case ":$PATH:" in
   *":$INSTALL_DIR:"*) ;;
   *)
-    echo "Add this to your shell config if termcode is not found:"
+    echo "Add this to your shell config if jumpdir is not found:"
     echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
     ;;
 esac

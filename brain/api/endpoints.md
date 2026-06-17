@@ -7,9 +7,9 @@ Track public command entrypoints.
 - Update when CLI commands change.
 
 ## Commands
-- `termcode set <paths...>`
-- `termcode ls`
-- `termcode rename <current-name-or-path> <new-alias>`
-- `termcode open <project>`
-- `termcode . <project>`
-- `termcode <project> <script> [args...]`
+- `jumpdir set <paths...>`
+- `jumpdir ls`
+- `jumpdir rename <current-name-or-path> <new-alias>`
+- `jumpdir open <project>`
+- `jumpdir . <project>`
+- `jumpdir <project> <script> [args...]`
