@@ -103,17 +103,31 @@ assert_contains "$output" "termcode - jump into and run scripts for local repos"
 assert_contains "$output" "termcode runner set <runner|none>"
 
 output="$(JUMPDIR_SOURCE_URL="file://$JUMPDIR" bash "$JUMPDIR" update)"
-assert_contains "$output" "Current version: 0.3.0"
-assert_contains "$output" "Latest version:  0.3.0"
+assert_contains "$output" "Current version: 0.3.1"
+assert_contains "$output" "Latest version:  0.3.1"
 assert_contains "$output" "jumpdir is up to date."
 
 NEWER_JUMPDIR="$TMP_DIR/newer-jumpdir"
 printf '#!/usr/bin/env bash\nVERSION="9.9.9"\n' > "$NEWER_JUMPDIR"
 output="$(JUMPDIR_SOURCE_URL="file://$NEWER_JUMPDIR" bash "$JUMPDIR" update)"
-assert_contains "$output" "Current version: 0.3.0"
+assert_contains "$output" "Current version: 0.3.1"
 assert_contains "$output" "Latest version:  9.9.9"
 assert_contains "$output" "A newer jumpdir version is available."
 assert_contains "$output" "curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | bash"
+
+READONLY_XDG_CONFIG_HOME="$TMP_DIR/readonly-xdg"
+mkdir -p "$READONLY_XDG_CONFIG_HOME"
+chmod 500 "$READONLY_XDG_CONFIG_HOME"
+set +e
+readonly_update_output="$(
+  env JUMPDIR_FORCE_UPDATE_CHECK=1 JUMPDIR_SOURCE_URL="file://$JUMPDIR" XDG_CONFIG_HOME="$READONLY_XDG_CONFIG_HOME" bash "$JUMPDIR" set 2>&1
+)"
+readonly_update_status="$?"
+set -e
+chmod 700 "$READONLY_XDG_CONFIG_HOME"
+[ "$readonly_update_status" -eq 64 ] || fail "expected readonly update marker command to exit 64"
+assert_contains "$readonly_update_output" "jumpdir: set requires at least one path"
+assert_contains "$readonly_update_output" "Usage:"
 
 TEST_CONFIG_DIR="$TMP_DIR/config"
 output="$(
@@ -199,7 +213,7 @@ update_prompt_output="$(
     env JUMPDIR_FORCE_UPDATE_CHECK=1 JUMPDIR_SOURCE_URL="file://$NEWER_JUMPDIR" JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" bash "$JUMPDIR" ls 2>&1
 )"
 assert_contains "$update_prompt_output" "jumpdir update available."
-assert_contains "$update_prompt_output" "Current version: 0.3.0"
+assert_contains "$update_prompt_output" "Current version: 0.3.1"
 assert_contains "$update_prompt_output" "Latest version:  9.9.9"
 assert_contains "$update_prompt_output" "Update now? [Y/n]"
 assert_contains "$update_prompt_output" "alpha"
@@ -360,23 +374,23 @@ assert_contains "$duplicate_output" "$TMP_DIR/root-b/alpha"
 output="$(JUMPDIR_INSTALL_DIR="$TMP_DIR/install-local" bash "$ROOT_DIR/install.sh")"
 assert_contains "$output" "Installed jumpdir to $TMP_DIR/install-local/jumpdir"
 assert_contains "$output" "Installed termcode compatibility command to $TMP_DIR/install-local/termcode"
-assert_contains "$("$TMP_DIR/install-local/jumpdir" --version)" "jumpdir 0.3.0"
-assert_contains "$("$TMP_DIR/install-local/termcode" --version)" "termcode 0.3.0"
+assert_contains "$("$TMP_DIR/install-local/jumpdir" --version)" "jumpdir 0.3.1"
+assert_contains "$("$TMP_DIR/install-local/termcode" --version)" "termcode 0.3.1"
 
 cp "$ROOT_DIR/install.sh" "$TMP_DIR/remote-install.sh"
 output="$(JUMPDIR_INSTALL_DIR="$TMP_DIR/install-remote" JUMPDIR_SOURCE_URL="file://$JUMPDIR" bash "$TMP_DIR/remote-install.sh")"
 assert_contains "$output" "Downloading jumpdir from file://$JUMPDIR"
 assert_contains "$output" "Installed jumpdir to $TMP_DIR/install-remote/jumpdir"
 assert_contains "$output" "Installed termcode compatibility command to $TMP_DIR/install-remote/termcode"
-assert_contains "$("$TMP_DIR/install-remote/jumpdir" --version)" "jumpdir 0.3.0"
-assert_contains "$("$TMP_DIR/install-remote/termcode" --version)" "termcode 0.3.0"
+assert_contains "$("$TMP_DIR/install-remote/jumpdir" --version)" "jumpdir 0.3.1"
+assert_contains "$("$TMP_DIR/install-remote/termcode" --version)" "termcode 0.3.1"
 
 output="$(JUMPDIR_INSTALL_DIR="$TMP_DIR/install-piped" JUMPDIR_SOURCE_URL="file://$JUMPDIR" bash < "$ROOT_DIR/install.sh")"
 assert_contains "$output" "Downloading jumpdir from file://$JUMPDIR"
 assert_contains "$output" "Installed jumpdir to $TMP_DIR/install-piped/jumpdir"
 assert_contains "$output" "Installed termcode compatibility command to $TMP_DIR/install-piped/termcode"
-assert_contains "$("$TMP_DIR/install-piped/jumpdir" --version)" "jumpdir 0.3.0"
-assert_contains "$("$TMP_DIR/install-piped/termcode" --version)" "termcode 0.3.0"
+assert_contains "$("$TMP_DIR/install-piped/jumpdir" --version)" "jumpdir 0.3.1"
+assert_contains "$("$TMP_DIR/install-piped/termcode" --version)" "termcode 0.3.1"
 
 mkdir -p "$TMP_DIR/readonly"
 chmod 555 "$TMP_DIR/readonly"

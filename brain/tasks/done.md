@@ -79,3 +79,10 @@ Track completed tasks.
 - Related Feature: Jumpdir CLI
 - Status: Done
 - Created Date: 2026-06-17
+
+### Fix Update Check Output Regression
+- Priority: High
+- Description: Made legacy config migration best-effort, made daily update marker writes non-blocking so commands still show help/errors when config bookkeeping cannot write, added regression coverage, and bumped version to 0.3.1.
+- Related Feature: Jumpdir CLI
+- Status: Done
+- Created Date: 2026-06-17

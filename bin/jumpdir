@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.3.0"
+VERSION="0.3.1"
 COMMAND="${JUMPDIR_COMMAND_NAME:-${TERMCODE_COMMAND_NAME:-$(basename "$0")}}"
 DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir"
 LEGACY_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/termcode"
@@ -70,16 +70,27 @@ usage_error() {
   exit 64
 }
 
-ensure_config_dir() {
+migrate_legacy_config() {
   if [ "$MIGRATE_LEGACY_CONFIG" = "1" ] && [ -d "$LEGACY_CONFIG_DIR" ] && [ ! -e "$DEFAULT_CONFIG_DIR" ]; then
-    mkdir -p "$(dirname "$DEFAULT_CONFIG_DIR")"
-    cp -R "$LEGACY_CONFIG_DIR" "$DEFAULT_CONFIG_DIR"
-    printf 'Migrated config from termcode to jumpdir.\n' >&2
+    if mkdir -p "$(dirname "$DEFAULT_CONFIG_DIR")" 2>/dev/null && cp -R "$LEGACY_CONFIG_DIR" "$DEFAULT_CONFIG_DIR" 2>/dev/null; then
+      printf 'Migrated config from termcode to jumpdir.\n' >&2
+    else
+      printf 'Could not migrate config from termcode to jumpdir; continuing with jumpdir config.\n' >&2
+    fi
   fi
+}
 
-  mkdir -p "$CONFIG_DIR"
+ensure_config_dir() {
+  migrate_legacy_config
+
+  mkdir -p "$CONFIG_DIR" || die "cannot create config directory: $CONFIG_DIR"
   [ -f "$ROOTS_FILE" ] || : > "$ROOTS_FILE"
   [ -f "$ALIASES_FILE" ] || : > "$ALIASES_FILE"
+}
+
+try_config_dir() {
+  migrate_legacy_config
+  mkdir -p "$CONFIG_DIR" 2>/dev/null || return 1
 }
 
 expand_path() {
@@ -269,8 +280,8 @@ today() {
 }
 
 mark_update_checked() {
-  ensure_config_dir
-  today > "$UPDATE_CHECK_FILE"
+  try_config_dir || return 0
+  today > "$UPDATE_CHECK_FILE" 2>/dev/null || true
 }
 
 has_checked_update_today() {
