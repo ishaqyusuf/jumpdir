@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.3.1"
+VERSION="0.3.2"
 COMMAND="${JUMPDIR_COMMAND_NAME:-${TERMCODE_COMMAND_NAME:-$(basename "$0")}}"
 DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir"
 LEGACY_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/termcode"
@@ -36,7 +36,7 @@ Usage:
   $COMMAND runner set <runner|none>    Set preferred runner
   $COMMAND runner clear                Clear preferred runner
   $COMMAND update                      Check for a newer $COMMAND version
-  $COMMAND rename <name-or-path> <as>  Create a callable alias
+  $COMMAND alias <name-or-path> <as>   Create a callable alias
   $COMMAND path <project>              Print project path
   $COMMAND cd <project>                Print project path, or cd with shell integration
   $COMMAND init zsh                    Print zsh jump integration
@@ -502,7 +502,7 @@ print_project_summary() {
   if ! report="$(duplicate_report)"; then
     printf '\nSome project names are duplicated.\n'
     printf '%s\n' "$report"
-    printf 'Use `%s rename <name-or-path> <alias>` after setup to disambiguate.\n' "$COMMAND"
+    printf 'Use `%s alias <name-or-path> <alias>` after setup to disambiguate.\n' "$COMMAND"
   fi
 }
 
@@ -595,8 +595,8 @@ alias_conflicts() {
   [ -z "$conflicts" ]
 }
 
-rename_project() {
-  [ "$#" -eq 2 ] || usage_error "rename requires a project and a new alias"
+alias_project() {
+  [ "$#" -eq 2 ] || usage_error "alias requires a project and a new alias"
   ensure_config_dir
 
   local target new_alias tmp alias path
@@ -620,7 +620,7 @@ rename_project() {
   printf '%s\t%s\n' "$new_alias" "$target" >> "$tmp"
   mv "$tmp" "$ALIASES_FILE"
 
-  printf 'Renamed %s to %s.\n' "$(basename_of "$target")" "$new_alias"
+  printf 'Aliased %s as %s.\n' "$(basename_of "$target")" "$new_alias"
 }
 
 open_project() {
@@ -951,7 +951,7 @@ print_zsh_init() {
   printf '_%s() {\n' "$shell_command"
   cat <<'EOF'
   local -a commands projects scripts runner_commands runner_exec_commands runner_preferences runners
-  commands=(set ls runner update rename path cd init open . --help --version)
+  commands=(set ls runner update alias path cd init open . --help --version)
   runner_commands=(get set clear)
   runner_exec_commands=(run install add remove update upgrade exec dlx)
   runner_preferences=(bun pnpm npm yarn none)
@@ -976,7 +976,7 @@ print_zsh_init() {
       fi
       return
       ;;
-    rename)
+    alias)
       if [ "$CURRENT" -eq 3 ]; then
         projects=("${(@f)$("${__jumpdir_bin[@]}" complete projects 2>/dev/null)}")
         compadd -a projects
@@ -1041,7 +1041,7 @@ EOF
   printf '%s() {\n' "$shell_command"
   cat <<'EOF'
   case "${1:-}" in
-    ""|-h|--help|-v|--version|set|ls|runner|update|complete|rename|path|init|open|.)
+    ""|-h|--help|-v|--version|set|ls|runner|update|complete|alias|rename|path|init|open|.)
       "${__jumpdir_bin[@]}" "$@"
       ;;
     cd)
@@ -1210,9 +1210,13 @@ main() {
       shift
       complete_command "$@"
       ;;
+    alias)
+      shift
+      alias_project "$@"
+      ;;
     rename)
       shift
-      rename_project "$@"
+      alias_project "$@"
       ;;
     path)
       shift

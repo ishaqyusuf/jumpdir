@@ -86,3 +86,10 @@ Track completed tasks.
 - Related Feature: Jumpdir CLI
 - Status: Done
 - Created Date: 2026-06-17
+
+### Rename Alias Command
+- Priority: Medium
+- Description: Changed the public alias command from `jumpdir rename` to `jumpdir alias`, kept `rename` as hidden backward compatibility, updated docs/tests/Brain references, and bumped version to 0.3.2.
+- Related Feature: Jumpdir CLI
+- Status: Done
+- Created Date: 2026-06-18

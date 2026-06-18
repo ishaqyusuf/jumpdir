@@ -9,7 +9,7 @@ Track public command entrypoints.
 ## Commands
 - `jumpdir set <paths...>`
 - `jumpdir ls`
-- `jumpdir rename <current-name-or-path> <new-alias>`
+- `jumpdir alias <current-name-or-path> <new-alias>`
 - `jumpdir open <project>`
 - `jumpdir . <project>`
 - `jumpdir <project> <script> [args...]`

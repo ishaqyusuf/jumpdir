@@ -19,7 +19,7 @@ Track the main CLI feature.
 - `jumpdir set <paths...>` stores canonical root directories.
 - `jumpdir ls` lists discovered project names and alias names with paths.
 - Duplicate callable names are reported as ambiguous instead of resolved implicitly.
-- `jumpdir rename <name-or-path> <alias>` stores an alias for a resolved project path.
+- `jumpdir alias <name-or-path> <alias>` stores an alias for a resolved project path.
 - `jumpdir open <project>` opens Finder, and `jumpdir . <project>` opens VS Code.
 - `jumpdir runner get/set/clear` manages the Preferred Runner.
 - `jumpdir update` checks whether a newer published version is available.

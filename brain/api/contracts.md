@@ -9,7 +9,7 @@ Define user-visible command contracts.
 ## Template
 - `set` replaces saved roots.
 - `ls` prints callable project names alphabetically.
-- `rename` creates aliases only.
+- `alias` creates aliases only.
 - duplicate names fail until resolved with an alias.
 - `runner get/set/clear` manages the Preferred Runner.
 - `update` checks the published `bin/jumpdir` version and reports whether a newer version is available.

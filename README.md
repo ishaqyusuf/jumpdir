@@ -29,11 +29,11 @@ jumpdir my-app bun run dev
 jumpdir my-app bun install
 jumpdir open my-app
 jumpdir . my-app
-jumpdir rename my-long-repo-name my-app
+jumpdir alias my-long-repo-name my-app
 ```
 
 `jumpdir set` saves the roots to `${JUMPDIR_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir}/roots`.
-Aliases created by `jumpdir rename` are saved to `aliases` in the same directory, your preferred runner is saved to `runner`, and the daily update check date is saved to `update-check`.
+Aliases created by `jumpdir alias` are saved to `aliases` in the same directory, your preferred runner is saved to `runner`, and the daily update check date is saved to `update-check`.
 
 ## Termcode Compatibility
 
@@ -180,7 +180,7 @@ JUMPDIR_INSTALL_DIR=/usr/local/bin ./install.sh
 To install from another branch or tag with curl:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.3.1 bash
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.3.2 bash
 ```
 
 For forks, pass `JUMPDIR_REPO_OWNER` and `JUMPDIR_REPO_NAME` to the `bash` command.
@@ -209,7 +209,7 @@ jumpdir runner get
 jumpdir runner set <bun|pnpm|npm|yarn|none>
 jumpdir runner clear
 jumpdir update
-jumpdir rename <current-name-or-path> <new-alias>
+jumpdir alias <current-name-or-path> <new-alias>
 jumpdir path <project>
 jumpdir cd <project>
 jumpdir init zsh

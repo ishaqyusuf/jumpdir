@@ -13,7 +13,7 @@ Track the implementation sequence.
 3. Done: Implement `jumpdir set`.
 4. Done: Implement project scanning and `jumpdir ls`.
 5. Done: Implement resolver and duplicate detection.
-6. Done: Implement `jumpdir rename`.
+6. Done: Implement `jumpdir alias`.
 7. Done: Implement `jumpdir open` and `jumpdir .`.
 8. Done: Implement script execution and runner detection.
 9. Done: Add test harness.
