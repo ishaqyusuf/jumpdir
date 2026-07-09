@@ -22,5 +22,5 @@ Define user-visible command contracts.
 - interactive `<project>` also prints available package scripts on stderr when they can be read.
 - script execution uses either the Preferred Runner, the explicit Preferred Runner form `jumpdir my-app run dev`, or an explicit runner form such as `jumpdir my-app bun run dev`.
 - explicit runner commands such as `jumpdir my-app bun install` run inside the resolved project without package-script validation.
-- invalid script names fail before invoking the runner and print available package scripts when they can be read.
+- invalid script names open a script picker in interactive terminals, or fail before invoking the runner and print available package scripts in non-interactive use when scripts can be read.
 - missing Preferred Runner fails with setup guidance instead of guessing a package manager.

@@ -75,6 +75,32 @@ run_jumpdir() {
   JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" bash "$JUMPDIR" "$@"
 }
 
+run_jumpdir_picker() {
+  local keys output_file
+  keys="$1"
+  output_file="$2"
+  shift 2
+
+  JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" JUMPDIR_TEST_LOG="$JUMPDIR_TEST_LOG" expect -f - "$JUMPDIR" "$keys" "$@" > "$output_file" 2>&1 <<'EXPECT'
+set timeout 5
+set jumpdir [lindex $argv 0]
+set keys [lindex $argv 1]
+set args [lrange $argv 2 end]
+set decoded_keys [subst -nocommands -novariables $keys]
+
+spawn bash $jumpdir {*}$args
+expect {
+  "Select a script" {}
+  eof {}
+  timeout { exit 124 }
+}
+send -- $decoded_keys
+expect eof
+set result [wait]
+exit [lindex $result 3]
+EXPECT
+}
+
 export JUMPDIR_TEST_LOG="$TMP_DIR/commands.log"
 mkdir -p "$TMP_DIR/root-a" "$TMP_DIR/root-b" "$TMP_DIR/stubs"
 : > "$JUMPDIR_TEST_LOG"
@@ -105,14 +131,14 @@ assert_contains "$output" "termcode - jump into and run scripts for local repos"
 assert_contains "$output" "termcode runner set <runner|none>"
 
 output="$(JUMPDIR_SOURCE_URL="file://$JUMPDIR" bash "$JUMPDIR" update)"
-assert_contains "$output" "Current version: 0.3.2"
-assert_contains "$output" "Latest version:  0.3.2"
+assert_contains "$output" "Current version: 0.3.3"
+assert_contains "$output" "Latest version:  0.3.3"
 assert_contains "$output" "jumpdir is up to date."
 
 NEWER_JUMPDIR="$TMP_DIR/newer-jumpdir"
 printf '#!/usr/bin/env bash\nVERSION="9.9.9"\n' > "$NEWER_JUMPDIR"
 output="$(JUMPDIR_SOURCE_URL="file://$NEWER_JUMPDIR" bash "$JUMPDIR" update)"
-assert_contains "$output" "Current version: 0.3.2"
+assert_contains "$output" "Current version: 0.3.3"
 assert_contains "$output" "Latest version:  9.9.9"
 assert_contains "$output" "A newer jumpdir version is available."
 assert_contains "$output" "curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | bash"
@@ -215,7 +241,7 @@ update_prompt_output="$(
     env JUMPDIR_FORCE_UPDATE_CHECK=1 JUMPDIR_SOURCE_URL="file://$NEWER_JUMPDIR" JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" bash "$JUMPDIR" ls 2>&1
 )"
 assert_contains "$update_prompt_output" "jumpdir update available."
-assert_contains "$update_prompt_output" "Current version: 0.3.2"
+assert_contains "$update_prompt_output" "Current version: 0.3.3"
 assert_contains "$update_prompt_output" "Latest version:  9.9.9"
 assert_contains "$update_prompt_output" "Update now? [Y/n]"
 assert_contains "$update_prompt_output" "alpha"
@@ -322,6 +348,31 @@ assert_contains "$invalid_explicit_script_output" "[dev-2]"
 assert_contains "$invalid_explicit_script_output" "[build]"
 assert_eq "$(wc -l < "$JUMPDIR_TEST_LOG" | tr -d ' ')" "0"
 
+: > "$JUMPDIR_TEST_LOG"
+run_jumpdir runner set pnpm >/dev/null
+picker_output="$TMP_DIR/picker-output.txt"
+run_jumpdir_picker "\033\[B\r" "$picker_output" gamma dev2 --watch
+assert_file_contains "$picker_output" "script not found: dev2"
+assert_file_contains "$picker_output" "Select a script for gamma:"
+assert_file_contains "$JUMPDIR_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|run dev-2 -- --watch"
+
+: > "$JUMPDIR_TEST_LOG"
+explicit_picker_output="$TMP_DIR/explicit-picker-output.txt"
+run_jumpdir_picker "\033\[B\033\[B\r" "$explicit_picker_output" gamma bun run dev2 --mode production
+assert_file_contains "$explicit_picker_output" "script not found: dev2"
+assert_file_contains "$explicit_picker_output" "Select a script for gamma:"
+assert_file_contains "$JUMPDIR_TEST_LOG" "bun|$TMP_DIR/root-b/gamma|run build -- --mode production"
+
+: > "$JUMPDIR_TEST_LOG"
+cancel_picker_output="$TMP_DIR/cancel-picker-output.txt"
+set +e
+run_jumpdir_picker "\033" "$cancel_picker_output" gamma missing
+cancel_picker_status="$?"
+set -e
+[ "$cancel_picker_status" -eq 130 ] || fail "expected picker cancel to exit 130"
+assert_file_contains "$cancel_picker_output" "Canceled."
+assert_eq "$(wc -l < "$JUMPDIR_TEST_LOG" | tr -d ' ')" "0"
+
 run_jumpdir gamma bun run build --mode production
 assert_file_contains "$JUMPDIR_TEST_LOG" "bun|$TMP_DIR/root-b/gamma|run build -- --mode production"
 
@@ -331,6 +382,8 @@ assert_file_contains "$JUMPDIR_TEST_LOG" "bun|$TMP_DIR/root-b/gamma|install --fr
 
 run_jumpdir gamma pnpm add react
 assert_file_contains "$JUMPDIR_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|add react"
+
+run_jumpdir runner clear >/dev/null
 
 set +e
 missing_runner_output="$(run_jumpdir gamma dev 2>&1)"
@@ -382,23 +435,23 @@ assert_contains "$duplicate_output" "$TMP_DIR/root-b/alpha"
 output="$(JUMPDIR_INSTALL_DIR="$TMP_DIR/install-local" bash "$ROOT_DIR/install.sh")"
 assert_contains "$output" "Installed jumpdir to $TMP_DIR/install-local/jumpdir"
 assert_contains "$output" "Installed termcode compatibility command to $TMP_DIR/install-local/termcode"
-assert_contains "$("$TMP_DIR/install-local/jumpdir" --version)" "jumpdir 0.3.2"
-assert_contains "$("$TMP_DIR/install-local/termcode" --version)" "termcode 0.3.2"
+assert_contains "$("$TMP_DIR/install-local/jumpdir" --version)" "jumpdir 0.3.3"
+assert_contains "$("$TMP_DIR/install-local/termcode" --version)" "termcode 0.3.3"
 
 cp "$ROOT_DIR/install.sh" "$TMP_DIR/remote-install.sh"
 output="$(JUMPDIR_INSTALL_DIR="$TMP_DIR/install-remote" JUMPDIR_SOURCE_URL="file://$JUMPDIR" bash "$TMP_DIR/remote-install.sh")"
 assert_contains "$output" "Downloading jumpdir from file://$JUMPDIR"
 assert_contains "$output" "Installed jumpdir to $TMP_DIR/install-remote/jumpdir"
 assert_contains "$output" "Installed termcode compatibility command to $TMP_DIR/install-remote/termcode"
-assert_contains "$("$TMP_DIR/install-remote/jumpdir" --version)" "jumpdir 0.3.2"
-assert_contains "$("$TMP_DIR/install-remote/termcode" --version)" "termcode 0.3.2"
+assert_contains "$("$TMP_DIR/install-remote/jumpdir" --version)" "jumpdir 0.3.3"
+assert_contains "$("$TMP_DIR/install-remote/termcode" --version)" "termcode 0.3.3"
 
 output="$(JUMPDIR_INSTALL_DIR="$TMP_DIR/install-piped" JUMPDIR_SOURCE_URL="file://$JUMPDIR" bash < "$ROOT_DIR/install.sh")"
 assert_contains "$output" "Downloading jumpdir from file://$JUMPDIR"
 assert_contains "$output" "Installed jumpdir to $TMP_DIR/install-piped/jumpdir"
 assert_contains "$output" "Installed termcode compatibility command to $TMP_DIR/install-piped/termcode"
-assert_contains "$("$TMP_DIR/install-piped/jumpdir" --version)" "jumpdir 0.3.2"
-assert_contains "$("$TMP_DIR/install-piped/termcode" --version)" "termcode 0.3.2"
+assert_contains "$("$TMP_DIR/install-piped/jumpdir" --version)" "jumpdir 0.3.3"
+assert_contains "$("$TMP_DIR/install-piped/termcode" --version)" "termcode 0.3.3"
 
 mkdir -p "$TMP_DIR/readonly"
 chmod 555 "$TMP_DIR/readonly"

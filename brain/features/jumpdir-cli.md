@@ -29,7 +29,7 @@ Track the main CLI feature.
 - `jumpdir <project> run <script> [args...]` runs scripts through the Preferred Runner with an explicit `run` keyword.
 - `jumpdir <project> <runner> run <script> [args...]` runs scripts through an explicit one-off runner.
 - `jumpdir <project> <runner> <command> [args...]` runs package-manager commands like `install` or `add` inside the project.
-- Invalid script names print the available package scripts before exiting, without invoking the runner.
+- Invalid script names open a script picker in interactive terminals, or print available package scripts before exiting in non-interactive use, without invoking the runner first.
 - `jumpdir path <project>` prints a resolved project path.
 - `jumpdir cd <project>` prints a resolved project path in the binary, and changes directory when shell integration is installed.
 - `jumpdir <project>` prints the project path without shell integration.

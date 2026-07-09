@@ -99,7 +99,7 @@ jumpdir my-app bun install
 jumpdir my-app pnpm add react
 ```
 
-If you type a script name that is not in the project `package.json`, `jumpdir` prints the available script names for that project before exiting. When you run only `jumpdir my-app` in an interactive terminal, it still prints the project path and also shows the scripts you can run next.
+If you type a script name that is not in the project `package.json` from an interactive terminal, `jumpdir` opens a script picker so you can choose with the arrow keys and press Enter to run. In non-interactive use, it prints the available script names and exits without invoking the runner.
 Run `jumpdir my-app '?'` or `jumpdir my-app help` to show the project path, jump/open commands, available package scripts, and package-manager command examples.
 
 ## Jump Workflow
@@ -180,7 +180,7 @@ JUMPDIR_INSTALL_DIR=/usr/local/bin ./install.sh
 To install from another branch or tag with curl:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.3.2 bash
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.3.3 bash
 ```
 
 For forks, pass `JUMPDIR_REPO_OWNER` and `JUMPDIR_REPO_NAME` to the `bash` command.
@@ -223,7 +223,7 @@ jumpdir <project> <runner> <command> [args...]
 ```
 
 Script execution uses your preferred runner, `run` as the second word uses your preferred runner explicitly, and a named runner can execute package-manager commands inside the project.
-Invalid script names fail before invoking the runner and show the scripts from that project's `package.json`.
+Invalid script names open a picker in interactive terminals. Non-interactive invalid scripts fail before invoking the runner and show the scripts from that project's `package.json`.
 
 ## Development
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.3.2"
+VERSION="0.3.3"
 COMMAND="${JUMPDIR_COMMAND_NAME:-${TERMCODE_COMMAND_NAME:-$(basename "$0")}}"
 DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir"
 LEGACY_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/termcode"
@@ -727,6 +727,116 @@ EOF
   printf '\n' >&2
 }
 
+script_count() {
+  local scripts count script
+  scripts="$1"
+  count=0
+
+  while IFS= read -r script || [ -n "$script" ]; do
+    [ -n "$script" ] || continue
+    count=$((count + 1))
+  done <<EOF
+$scripts
+EOF
+
+  printf '%s\n' "$count"
+}
+
+can_pick_script() {
+  [ -t 0 ] && [ -t 2 ]
+}
+
+pick_script_or_cancel() {
+  local project bad_script scripts old_stty selected count script key rest index
+  local -a script_items
+  project="$1"
+  bad_script="$2"
+  scripts="$3"
+  selected=0
+  count=0
+
+  while IFS= read -r script || [ -n "$script" ]; do
+    [ -n "$script" ] || continue
+    script_items[$count]="$script"
+    count=$((count + 1))
+  done <<EOF
+$scripts
+EOF
+
+  [ "$count" -gt 0 ] || return 1
+
+  printf '%s: script not found: %s\n\n' "$COMMAND" "$bad_script" >&2
+  printf 'Select a script for %s:\n' "$project" >&2
+  printf 'Use Up/Down, Enter to run, Esc or Ctrl-C to cancel.\n' >&2
+
+  old_stty="$(stty -g)"
+  trap 'stty "$old_stty" 2>/dev/null || true; printf "\nCanceled.\n" >&2; exit 130' INT TERM
+  stty -echo -icanon min 1 time 0
+
+  while true; do
+    index=0
+    while [ "$index" -lt "$count" ]; do
+      script="${script_items[$index]}"
+      if [ "$index" -eq "$selected" ]; then
+        printf '\033[2K\r\033[7m> %s\033[0m\n' "$script" >&2
+      else
+        printf '\033[2K\r  %s\n' "$script" >&2
+      fi
+      index=$((index + 1))
+    done
+
+    if ! IFS= read -r -s -n 1 key; then
+      stty "$old_stty" 2>/dev/null || true
+      trap - INT TERM
+      printf '\nCanceled.\n' >&2
+      exit 130
+    fi
+    case "$key" in
+      ""|"$(printf '\r')"|"$(printf '\n')")
+        stty "$old_stty" 2>/dev/null || true
+        trap - INT TERM
+        printf '\n' >&2
+        printf '%s\n' "${script_items[$selected]}"
+        return 0
+        ;;
+      "$(printf '\003')")
+        stty "$old_stty" 2>/dev/null || true
+        trap - INT TERM
+        printf '\nCanceled.\n' >&2
+        exit 130
+        ;;
+      "$(printf '\033')")
+        rest=""
+        IFS= read -r -s -n 2 -t 1 rest || true
+        case "$rest" in
+          "[A")
+            if [ "$selected" -le 0 ]; then
+              selected=$((count - 1))
+            else
+              selected=$((selected - 1))
+            fi
+            ;;
+          "[B")
+            if [ "$selected" -ge $((count - 1)) ]; then
+              selected=0
+            else
+              selected=$((selected + 1))
+            fi
+            ;;
+          *)
+            stty "$old_stty" 2>/dev/null || true
+            trap - INT TERM
+            printf '\nCanceled.\n' >&2
+            exit 130
+            ;;
+        esac
+        ;;
+    esac
+
+    printf '\033[%sA' "$count" >&2
+  done
+}
+
 print_interactive_project_help() {
   local project target scripts
   project="$1"
@@ -771,17 +881,24 @@ EOF
   printf '  %s %s pnpm add <package>\n' "$COMMAND" "$project"
 }
 
-validate_script_or_exit() {
+resolve_script_or_exit() {
   local project target script scripts
   project="$1"
   target="$2"
   script="$3"
 
   if ! scripts="$(package_scripts "$target")"; then
+    printf '%s\n' "$script"
     return 0
   fi
 
   if script_exists_in_list "$script" "$scripts"; then
+    printf '%s\n' "$script"
+    return 0
+  fi
+
+  if can_pick_script && [ "$(script_count "$scripts")" -gt 0 ]; then
+    pick_script_or_cancel "$project" "$script" "$scripts"
     return 0
   fi
 
@@ -902,7 +1019,7 @@ run_project_command() {
     [ "$#" -ge 3 ] || usage_error "run requires a script"
     script="$3"
     shift 3
-    validate_script_or_exit "$project" "$target" "$script"
+    script="$(resolve_script_or_exit "$project" "$target" "$script")"
     runner="$(get_runner_preference)"
     if [ "$runner" = "none" ]; then
       missing_runner_message "$project" "$script"
@@ -920,7 +1037,7 @@ run_project_command() {
       [ "$#" -ge 4 ] || usage_error "$runner run requires a script"
       script="$4"
       shift 4
-      validate_script_or_exit "$project" "$target" "$script"
+      script="$(resolve_script_or_exit "$project" "$target" "$script")"
       run_with_runner "$target" "$runner" "$script" "$@"
     else
       shift 3
@@ -931,7 +1048,7 @@ run_project_command() {
 
   script="$2"
   shift 2
-  validate_script_or_exit "$project" "$target" "$script"
+  script="$(resolve_script_or_exit "$project" "$target" "$script")"
   runner="$(get_runner_preference)"
   if [ "$runner" = "none" ]; then
     missing_runner_message "$project" "$script"

@@ -93,3 +93,10 @@ Track completed tasks.
 - Related Feature: Jumpdir CLI
 - Status: Done
 - Created Date: 2026-06-18
+
+### Add Interactive Script Picker
+- Priority: High
+- Description: Added an interactive arrow-key script picker for invalid package scripts, preserved non-interactive list-and-exit behavior, covered Preferred Runner, explicit runner, and cancel flows in tests, updated docs, and bumped version to 0.3.3.
+- Related Feature: Jumpdir CLI
+- Status: Done
+- Created Date: 2026-07-09
