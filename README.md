@@ -13,32 +13,29 @@ AI has changed how I work on code. I spend less time manually navigating an edit
 ## Usage
 
 ```sh
+jd
+jd runner set pnpm
+jd set ~/Documents/code ~/Desktop/projects
+jd ls
+jd update
 jd my-app
+jd my-app '?'
+jd my-app help
 jd my-app dev
+jd my-app dev-2
+jd my-app run dev
+jd my-app bun run dev
+jd my-app bun install
+jd open my-app
+jd . my-app
 jd cd my-app
 jd alias my-long-repo-name my-app
-
-jumpdir
-jumpdir runner set pnpm
-jumpdir set ~/Documents/code ~/Desktop/projects
-jumpdir ls
-jumpdir update
-jumpdir my-app
-jumpdir my-app '?'
-jumpdir my-app help
-jumpdir cd my-app
-jumpdir my-app dev
-jumpdir my-app dev-2
-jumpdir my-app run dev
-jumpdir my-app bun run dev
-jumpdir my-app bun install
-jumpdir open my-app
-jumpdir . my-app
-jumpdir alias my-long-repo-name my-app
 ```
 
-`jumpdir set` saves the roots to `${JUMPDIR_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir}/roots`.
-Aliases created by `jumpdir alias` are saved to `aliases` in the same directory, your preferred runner is saved to `runner`, and the daily update check date is saved to `update-check`.
+`jd` and `jumpdir` are equivalent. The short command is for daily use; the full command remains available when you want the descriptive name.
+
+`jd set` saves the roots to `${JUMPDIR_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir}/roots`.
+Aliases created by `jd alias` are saved to `aliases` in the same directory, your preferred runner is saved to `runner`, and the daily update check date is saved to `update-check`.
 
 ## Short Command
 
@@ -60,7 +57,7 @@ If you already have `~/.config/termcode` and no `~/.config/jumpdir`, `jumpdir` c
 
 ## First Run
 
-Run `jumpdir` with no arguments to start onboarding:
+Run `jd` with no arguments to start onboarding:
 
 ```text
 Welcome to jumpdir.
@@ -76,16 +73,16 @@ Step 2: Add project directories
   Example: ~/Documents/code ~/Desktop/projects
 ```
 
-After each directory step, `jumpdir` lists the projects it found and lets you add another directory or proceed.
+After each directory step, `jd` lists the projects it found and lets you add another directory or proceed.
 
 ## Preferred Runner
 
-The preferred runner is the package runner `jumpdir` uses when you run a script by name:
+The preferred runner is the package runner `jd` uses when you run a script by name:
 
 ```sh
-jumpdir runner set pnpm
-jumpdir my-app dev
-jumpdir my-app run dev
+jd runner set pnpm
+jd my-app dev
+jd my-app run dev
 ```
 
 Both script forms run:
@@ -97,45 +94,45 @@ pnpm run dev
 To clear it:
 
 ```sh
-jumpdir runner clear
+jd runner clear
 ```
 
 If no preferred runner is set, provide one in the command:
 
 ```sh
-jumpdir my-app bun run dev
-jumpdir my-app pnpm run dev
-jumpdir my-app npm run dev
-jumpdir my-app yarn run dev
+jd my-app bun run dev
+jd my-app pnpm run dev
+jd my-app npm run dev
+jd my-app yarn run dev
 ```
 
 You can also run package-manager commands inside a project:
 
 ```sh
-jumpdir my-app bun install
-jumpdir my-app pnpm add react
+jd my-app bun install
+jd my-app pnpm add react
 ```
 
-If you type a script name that is not in the project `package.json` from an interactive terminal, `jumpdir` opens a script picker so you can choose with the arrow keys and press Enter to run. In non-interactive use, it prints the available script names and exits without invoking the runner.
-Run `jumpdir my-app '?'` or `jumpdir my-app help` to show the project path, jump/open commands, available package scripts, and package-manager command examples.
+If you type a script name that is not in the project `package.json` from an interactive terminal, `jd` opens a script picker so you can choose with the arrow keys and press Enter to run. In non-interactive use, it prints the available script names and exits without invoking the runner.
+Run `jd my-app '?'` or `jd my-app help` to show the project path, jump/open commands, available package scripts, and package-manager command examples.
 
 ## Jump Workflow
 
-Without shell integration, `jumpdir <project>` prints the project path:
+Without shell integration, `jd <project>` prints the project path:
 
 ```sh
-jumpdir my-app
-jumpdir cd my-app
-jumpdir path my-app
+jd my-app
+jd cd my-app
+jd path my-app
 ```
 
-To make `jumpdir my-app` or `jumpdir cd my-app` change your current shell directory in zsh, add this to your shell config:
+To make `jd my-app` or `jd cd my-app` change your current shell directory in zsh, add this to your shell config:
 
 ```sh
-eval "$(jumpdir init zsh)"
+eval "$(jd init zsh)"
 ```
 
-A standalone CLI cannot change its parent shell directory, so the shell integration wraps the binary and runs `cd "$(command jumpdir path my-app)"` for one-argument project jumps.
+A standalone CLI cannot change its parent shell directory, so the shell integration wraps the binary and runs `cd "$(command jd path my-app)"` for one-argument project jumps.
 The same zsh integration also enables tab completion for project names, aliases, and package scripts.
 
 ## Install
@@ -165,10 +162,10 @@ Use `sudo` only for system-owned directories like `/usr/local/bin`.
 Check whether a newer version is available:
 
 ```sh
-jumpdir update
+jd update
 ```
 
-When used in an interactive terminal, `jumpdir` checks for updates at most once per day. If a newer version is available, it asks whether to update now. Choosing `n` continues with the command you already typed.
+When used in an interactive terminal, `jd` checks for updates at most once per day. If a newer version is available, it asks whether to update now. Choosing `n` continues with the command you already typed.
 
 Rerun the installer to update `jumpdir`. It overwrites the existing binary with the latest version from `main`.
 
@@ -199,7 +196,7 @@ JUMPDIR_INSTALL_DIR=/usr/local/bin ./install.sh
 To install from another branch or tag with curl:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.3.4 bash
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.3.5 bash
 ```
 
 For forks, pass `JUMPDIR_REPO_OWNER` and `JUMPDIR_REPO_NAME` to the `bash` command.
@@ -213,7 +210,7 @@ After tagging a release, replace the placeholder repository URL and checksum, th
 
 Discovery is intentionally simple:
 
-- search only the roots configured with `jumpdir set`
+- search only the roots configured with `jd set`
 - include only direct child folders
 - include only folders containing `package.json`
 - list callable names alphabetically
@@ -222,23 +219,23 @@ Discovery is intentionally simple:
 ## Commands
 
 ```sh
-jumpdir set <paths...>
-jumpdir ls
-jumpdir runner get
-jumpdir runner set <bun|pnpm|npm|yarn|none>
-jumpdir runner clear
-jumpdir update
-jumpdir alias <current-name-or-path> <new-alias>
-jumpdir path <project>
-jumpdir cd <project>
-jumpdir init zsh
-jumpdir open <project>
-jumpdir . <project>
-jumpdir <project> ?|help
-jumpdir <project> <script> [args...]
-jumpdir <project> run <script> [args...]
-jumpdir <project> <runner> run <script> [args...]
-jumpdir <project> <runner> <command> [args...]
+jd set <paths...>
+jd ls
+jd runner get
+jd runner set <bun|pnpm|npm|yarn|none>
+jd runner clear
+jd update
+jd alias <current-name-or-path> <new-alias>
+jd path <project>
+jd cd <project>
+jd init zsh
+jd open <project>
+jd . <project>
+jd <project> ?|help
+jd <project> <script> [args...]
+jd <project> run <script> [args...]
+jd <project> <runner> run <script> [args...]
+jd <project> <runner> <command> [args...]
 ```
 
 Script execution uses your preferred runner, `run` as the second word uses your preferred runner explicitly, and a named runner can execute package-manager commands inside the project.

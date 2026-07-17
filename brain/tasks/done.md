@@ -107,3 +107,10 @@ Track completed tasks.
 - Related Feature: Jumpdir CLI
 - Status: Done
 - Created Date: 2026-07-17
+
+### Make Jd Primary In Docs
+- Priority: Medium
+- Description: Updated README usage examples and command reference to lead with `jd`, added a `jd` hint to full-command help output, and bumped version to 0.3.5.
+- Related Feature: Jumpdir CLI
+- Status: Done
+- Created Date: 2026-07-17
