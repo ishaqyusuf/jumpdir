@@ -1,6 +1,6 @@
 # jumpdir
 
-`jumpdir` is a small macOS CLI for finding local repos, opening them, and running package scripts without remembering where every repo lives.
+`jumpdir` is a small macOS CLI for finding local repos, opening them, and running package scripts without remembering where every repo lives. The installer also adds the short `jd` command for everyday use.
 
 ![jumpdir terminal demo](assets/jumpdir-terminal.png)
 
@@ -13,6 +13,11 @@ AI has changed how I work on code. I spend less time manually navigating an edit
 ## Usage
 
 ```sh
+jd my-app
+jd my-app dev
+jd cd my-app
+jd alias my-long-repo-name my-app
+
 jumpdir
 jumpdir runner set pnpm
 jumpdir set ~/Documents/code ~/Desktop/projects
@@ -35,9 +40,21 @@ jumpdir alias my-long-repo-name my-app
 `jumpdir set` saves the roots to `${JUMPDIR_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir}/roots`.
 Aliases created by `jumpdir alias` are saved to `aliases` in the same directory, your preferred runner is saved to `runner`, and the daily update check date is saved to `update-check`.
 
+## Short Command
+
+`jd` is the short command for daily prompting. It is installed beside `jumpdir` and uses the same config:
+
+```sh
+jd gnd
+jd gnd dev
+jd alias school-clerk sc
+```
+
+The full `jumpdir` command remains available and behaves the same way.
+
 ## Termcode Compatibility
 
-`termcode` remains available as a compatibility command. The installer adds both `jumpdir` and `termcode`, and existing `TERMCODE_*` environment variables still work as fallbacks for the new `JUMPDIR_*` names.
+`termcode` remains available as a compatibility command. The installer adds `jumpdir`, `jd`, and `termcode`, and existing `TERMCODE_*` environment variables still work as fallbacks for the new `JUMPDIR_*` names.
 
 If you already have `~/.config/termcode` and no `~/.config/jumpdir`, `jumpdir` copies the old config into `~/.config/jumpdir` on first use. The old `termcode` config folder is left in place as a backup.
 
@@ -127,10 +144,12 @@ The same zsh integration also enables tab completion for project names, aliases,
 curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | bash
 ```
 
-By default, the installer puts `jumpdir` at:
+By default, the installer puts `jumpdir`, `jd`, and `termcode` at:
 
 ```sh
 ~/.local/bin/jumpdir
+~/.local/bin/jd
+~/.local/bin/termcode
 ```
 
 To choose another install location:
@@ -180,7 +199,7 @@ JUMPDIR_INSTALL_DIR=/usr/local/bin ./install.sh
 To install from another branch or tag with curl:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.3.3 bash
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.3.4 bash
 ```
 
 For forks, pass `JUMPDIR_REPO_OWNER` and `JUMPDIR_REPO_NAME` to the `bash` command.

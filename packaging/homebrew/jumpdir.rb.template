@@ -1,17 +1,19 @@
 class Jumpdir < Formula
   desc "Jump into and run scripts for local repos"
   homepage "https://github.com/ishaqyusuf/jumpdir"
-  url "https://github.com/ishaqyusuf/jumpdir/archive/refs/tags/v0.3.3.tar.gz"
+  url "https://github.com/ishaqyusuf/jumpdir/archive/refs/tags/v0.3.4.tar.gz"
   sha256 "CHANGE_ME_AFTER_TAGGING_RELEASE"
   license "MIT"
 
   def install
     bin.install "bin/jumpdir"
+    bin.install "bin/jd"
     bin.install "bin/termcode"
   end
 
   test do
-    assert_match "jumpdir 0.3.3", shell_output("#{bin}/jumpdir --version")
-    assert_match "termcode 0.3.3", shell_output("#{bin}/termcode --version")
+    assert_match "jumpdir 0.3.4", shell_output("#{bin}/jumpdir --version")
+    assert_match "jd 0.3.4", shell_output("#{bin}/jd --version")
+    assert_match "termcode 0.3.4", shell_output("#{bin}/termcode --version")
   end
 end

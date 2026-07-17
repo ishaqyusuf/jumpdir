@@ -100,3 +100,10 @@ Track completed tasks.
 - Related Feature: Jumpdir CLI
 - Status: Done
 - Created Date: 2026-07-09
+
+### Add Jd Shortcut Command
+- Priority: Medium
+- Description: Added `jd` as a short command shim for `jumpdir`, installed it through curl/Homebrew paths, covered help, zsh integration, and installer behavior in tests, updated docs, and bumped version to 0.3.4.
+- Related Feature: Jumpdir CLI
+- Status: Done
+- Created Date: 2026-07-17

@@ -8,6 +8,7 @@ Track the main CLI feature.
 
 ## Accepted Plan
 - Build a macOS shell CLI installable with curl first and Homebrew later.
+- Install `jd` as the short daily-use command beside the full `jumpdir` command.
 - Scan configured roots for direct child package projects.
 - Support aliases without folder renames.
 - Support Finder and VS Code open commands.
@@ -17,6 +18,7 @@ Track the main CLI feature.
 
 ## Shipped Behavior
 - `jumpdir set <paths...>` stores canonical root directories.
+- `jd` is a short command shim for `jumpdir` and uses the same config and behavior.
 - `jumpdir ls` lists discovered project names and alias names with paths.
 - Duplicate callable names are reported as ambiguous instead of resolved implicitly.
 - `jumpdir alias <name-or-path> <alias>` stores an alias for a resolved project path.

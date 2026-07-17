@@ -7,6 +7,7 @@ REF="${JUMPDIR_REF:-${TERMCODE_REF:-main}}"
 SOURCE_URL="${JUMPDIR_SOURCE_URL:-${TERMCODE_SOURCE_URL:-https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/$REF/bin/jumpdir}}"
 INSTALL_DIR="${JUMPDIR_INSTALL_DIR:-${TERMCODE_INSTALL_DIR:-$HOME/.local/bin}}"
 INSTALL_BIN="$INSTALL_DIR/jumpdir"
+SHORT_BIN="$INSTALL_DIR/jd"
 COMPAT_BIN="$INSTALL_DIR/termcode"
 TMP_FILE=""
 
@@ -65,16 +66,20 @@ download_source_bin() {
   printf '%s\n' "$TMP_FILE"
 }
 
-write_compat_bin() {
-  cat > "$COMPAT_BIN" <<'EOF'
+write_command_shim() {
+  local output command_name
+  output="$1"
+  command_name="$2"
+
+  cat > "$output" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-export JUMPDIR_COMMAND_NAME="${JUMPDIR_COMMAND_NAME:-termcode}"
-exec bash "$SCRIPT_DIR/jumpdir" "$@"
+SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd -P)"
+export JUMPDIR_COMMAND_NAME="\${JUMPDIR_COMMAND_NAME:-$command_name}"
+exec bash "\$SCRIPT_DIR/jumpdir" "\$@"
 EOF
-  chmod 0755 "$COMPAT_BIN"
+  chmod 0755 "$output"
 }
 
 SOURCE_BIN="$(local_source_bin)"
@@ -85,9 +90,11 @@ fi
 
 ensure_install_dir
 install -m 0755 "$SOURCE_BIN" "$INSTALL_BIN"
-write_compat_bin
+write_command_shim "$SHORT_BIN" "jd"
+write_command_shim "$COMPAT_BIN" "termcode"
 
 echo "Installed jumpdir to $INSTALL_BIN"
+echo "Installed jd shortcut command to $SHORT_BIN"
 echo "Installed termcode compatibility command to $COMPAT_BIN"
 "$INSTALL_BIN" --version
 
