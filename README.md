@@ -53,7 +53,7 @@ The full `jumpdir` command remains available and behaves the same way.
 
 ## Command History
 
-`jd history` shows your recent JD actions. In an interactive terminal, use Up/Down to choose an entry and Enter to run it again. Press Esc or Ctrl-C to cancel.
+`jd history` shows your recent JD actions. In an interactive terminal, use Up/Down to choose an entry and Enter to run it again. Press Backspace to permanently delete the highlighted entry, or Esc/Ctrl-C to cancel.
 
 ```sh
 jd history

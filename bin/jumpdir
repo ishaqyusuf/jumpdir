@@ -788,10 +788,12 @@ cancel_picker() {
 }
 
 pick_index_or_cancel() {
-  local items old_stty selected count item key rest index
+  local items initial_selected delete_enabled old_stty selected count item key rest index
   local -a picker_items
   items="$1"
-  selected=0
+  initial_selected="${2:-0}"
+  delete_enabled="${3:-0}"
+  selected="$initial_selected"
   count=0
 
   while IFS= read -r item || [ -n "$item" ]; do
@@ -803,6 +805,10 @@ $items
 EOF
 
   [ "$count" -gt 0 ] || return 1
+  case "$selected" in
+    ""|*[!0-9]*) selected=0 ;;
+  esac
+  [ "$selected" -lt "$count" ] || selected=$((count - 1))
 
   old_stty="$(stty -g)"
   trap 'restore_picker_terminal "$old_stty"' EXIT
@@ -831,11 +837,21 @@ EOF
       ""|"$(printf '\r')"|"$(printf '\n')")
         restore_picker_terminal "$old_stty"
         printf '\n' >&2
-        printf '%s\n' "$selected"
+        PICKER_ACTION="select"
+        PICKER_SELECTED="$selected"
         return 0
         ;;
       "$(printf '\003')")
         cancel_picker "$old_stty"
+        ;;
+      "$(printf '\010')"|"$(printf '\177')")
+        if [ "$delete_enabled" = "1" ]; then
+          restore_picker_terminal "$old_stty"
+          printf '\n' >&2
+          PICKER_ACTION="delete"
+          PICKER_SELECTED="$selected"
+          return 0
+        fi
         ;;
       "$(printf '\033')")
         rest=""
@@ -876,7 +892,8 @@ pick_script_or_cancel() {
   printf 'Select a script for %s:\n' "$project" >&2
   printf 'Use Up/Down, Enter to run, Esc or Ctrl-C to cancel.\n' >&2
 
-  if selected="$(pick_index_or_cancel "$scripts")"; then
+  if pick_index_or_cancel "$scripts"; then
+    selected="$PICKER_SELECTED"
     :
   else
     picker_status="$?"
@@ -1619,6 +1636,55 @@ record_history() {
   history_release_lock
 }
 
+delete_history_record() {
+  local record tmp line removed
+  record="$1"
+
+  if ! try_config_dir; then
+    printf '%s: warning: could not delete command from history.\n' "$COMMAND" >&2
+    return 1
+  fi
+  if ! history_acquire_lock; then
+    printf '%s: warning: command history is busy; entry was not deleted.\n' "$COMMAND" >&2
+    return 1
+  fi
+
+  tmp="$HISTORY_FILE.tmp.$$"
+  if ! : > "$tmp"; then
+    history_release_lock
+    printf '%s: warning: could not delete command from history.\n' "$COMMAND" >&2
+    return 1
+  fi
+
+  removed=0
+  if [ -f "$HISTORY_FILE" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      if history_record_from_line "$line" &&
+         [ "$HISTORY_STORED_RECORD" = "$record" ]; then
+        removed=1
+        continue
+      fi
+      if ! printf '%s\n' "$line" >> "$tmp"; then
+        rm -f "$tmp" 2>/dev/null || true
+        history_release_lock
+        printf '%s: warning: could not delete command from history.\n' "$COMMAND" >&2
+        return 1
+      fi
+    done < "$HISTORY_FILE"
+  fi
+
+  if ! mv "$tmp" "$HISTORY_FILE"; then
+    rm -f "$tmp" 2>/dev/null || true
+    history_release_lock
+    printf '%s: warning: could not delete command from history.\n' "$COMMAND" >&2
+    return 1
+  fi
+
+  history_release_lock
+  HISTORY_DELETE_REMOVED="$removed"
+  return 0
+}
+
 history_matches_filter() {
   local rendered filter rendered_lower filter_lower
   rendered="$1"
@@ -1725,35 +1791,60 @@ load_history_matches() {
 }
 
 pick_history_match() {
-  local picker_items selected picker_status index
-  printf 'Select a command:\n' >&2
-  printf 'Use Up/Down, Enter to run, Esc or Ctrl-C to cancel.\n' >&2
-  picker_items=""
-  index=0
-  while [ "$index" -lt "$HISTORY_MATCHED_COUNT" ]; do
-    if [ -n "$picker_items" ]; then
-      picker_items="$picker_items
+  local picker_items selected picker_status index initial_selected deleted_display
+  initial_selected=0
+
+  while true; do
+    printf 'Select a command:\n' >&2
+    printf 'Use Up/Down, Enter to run, Backspace to delete, Esc or Ctrl-C to cancel.\n' >&2
+    picker_items=""
+    index=0
+    while [ "$index" -lt "$HISTORY_MATCHED_COUNT" ]; do
+      if [ -n "$picker_items" ]; then
+        picker_items="$picker_items
 ${HISTORY_MATCH_DISPLAYS[$index]}"
+      else
+        picker_items="${HISTORY_MATCH_DISPLAYS[$index]}"
+      fi
+      index=$((index + 1))
+    done
+
+    if pick_index_or_cancel "$picker_items" "$initial_selected" 1; then
+      selected="$PICKER_SELECTED"
     else
-      picker_items="${HISTORY_MATCH_DISPLAYS[$index]}"
+      picker_status="$?"
+      return "$picker_status"
     fi
-    index=$((index + 1))
+
+    if [ "$PICKER_ACTION" = "delete" ]; then
+      deleted_display="${HISTORY_MATCH_DISPLAYS[$selected]}"
+      if delete_history_record "${HISTORY_MATCH_RECORDS[$selected]}"; then
+        if [ "$HISTORY_DELETE_REMOVED" -eq 1 ]; then
+          printf 'Deleted: %s\n' "$deleted_display" >&2
+        fi
+        load_history_matches
+        if [ "$HISTORY_MATCHED_COUNT" -eq 0 ]; then
+          history_notice "No $COMMAND history entries remain."
+          return 0
+        fi
+        initial_selected="$selected"
+        [ "$initial_selected" -lt "$HISTORY_MATCHED_COUNT" ] ||
+          initial_selected=$((HISTORY_MATCHED_COUNT - 1))
+      else
+        initial_selected="$selected"
+      fi
+      continue
+    fi
+
+    history_decode_record "${HISTORY_MATCH_RECORDS[$selected]}" ||
+      die "could not decode selected history entry"
+    if [ "${JUMPDIR_HISTORY_EMIT0:-}" = "1" ]; then
+      history_emit_args0
+    else
+      main "${HISTORY_ARGS[@]}"
+    fi
+    return 0
   done
-
-  if selected="$(pick_index_or_cancel "$picker_items")"; then
-    :
-  else
-    picker_status="$?"
-    return "$picker_status"
-  fi
-
-  history_decode_record "${HISTORY_MATCH_RECORDS[$selected]}" ||
-    die "could not decode selected history entry"
-  if [ "${JUMPDIR_HISTORY_EMIT0:-}" = "1" ]; then
-    history_emit_args0
-  else
-    main "${HISTORY_ARGS[@]}"
-  fi
 }
 
 print_history_matches() {

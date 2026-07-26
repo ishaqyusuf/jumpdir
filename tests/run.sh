@@ -138,6 +138,11 @@ expect {
   eof {}
   timeout { exit 124 }
 }
+expect {
+  -re {> [^\r\n]+} {}
+  eof {}
+  timeout { exit 124 }
+}
 send -- $decoded_keys
 expect eof
 set result [wait]
@@ -616,6 +621,23 @@ assert_file_contains "$JUMPDIR_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|exec replay
 wrap_history_picker_output="$TMP_DIR/wrap-history-picker-output.txt"
 run_history_picker "\033\[A\r" "$wrap_history_picker_output" -f replay- --count 2
 assert_file_contains "$JUMPDIR_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|exec replay-second"
+
+run_jumpdir gamma pnpm exec delete-older >/dev/null
+run_jumpdir gamma pnpm exec delete-newer >/dev/null
+: > "$JUMPDIR_TEST_LOG"
+delete_history_picker_output="$TMP_DIR/delete-history-picker-output.txt"
+set +e
+run_history_picker "\033\[B\177\033" "$delete_history_picker_output" -f delete- --count 2
+delete_history_picker_status="$?"
+set -e
+[ "$delete_history_picker_status" -eq 130 ] || fail "expected history picker to cancel after deletion"
+assert_file_contains "$delete_history_picker_output" "Backspace to delete"
+assert_contains "$(sed -n '1,160p' "$delete_history_picker_output")" "Deleted: jumpdir gamma pnpm exec delete-older"
+deleted_history_output="$(run_jumpdir history -f delete- --count 2)"
+assert_line_count "$deleted_history_output" 1
+assert_contains "$deleted_history_output" "jumpdir gamma pnpm exec delete-newer"
+assert_not_line "$deleted_history_output" "jumpdir gamma pnpm exec delete-older"
+assert_eq "$(wc -l < "$JUMPDIR_TEST_LOG" | tr -d ' ')" "0"
 
 injection_file="$TMP_DIR/history-injection"
 run_jumpdir gamma pnpm exec replay-safe "safe;touch $injection_file" >/dev/null
