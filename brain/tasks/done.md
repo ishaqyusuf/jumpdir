@@ -114,3 +114,10 @@ Track completed tasks.
 - Related Feature: Jumpdir CLI
 - Status: Done
 - Created Date: 2026-07-17
+
+### Add JD Command History
+- Priority: High
+- Description: Added unique action-command history with literal filtering, count limits, a safe interactive replay picker, concurrent-write protection, zsh-aware jump replay, expanded tests and docs, and version 0.4.0 release metadata.
+- Related Feature: Jumpdir CLI
+- Status: Done
+- Created Date: 2026-07-26

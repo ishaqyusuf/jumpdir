@@ -15,4 +15,5 @@ Describe the system at a high level so contributors understand what `jumpdir` do
 - List discovered projects alphabetically.
 - Add aliases without renaming folders.
 - Open projects in Finder or VS Code.
-- Run package scripts with automatic package manager detection.
+- Run package scripts with a configured or explicit package manager.
+- Filter and replay recent project actions from local command history.

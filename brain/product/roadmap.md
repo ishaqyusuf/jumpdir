@@ -16,3 +16,4 @@ Track product milestones.
 - Done: Implement package script runner.
 - Done: Add installer polish and Homebrew formula preparation.
 - Done: Implement v0.2 onboarding, Preferred Runner, explicit runner override, path command, and zsh jump integration.
+- Done: Implement v0.4 unique command history, filtering, count limits, interactive replay, and zsh-aware jump replay.

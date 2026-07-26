@@ -13,3 +13,4 @@ Track the concise system description.
 - Primary job: discover local repos, jump to project paths, and run package scripts by name.
 - Storage: local config under `${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir/`.
 - Setup: first-run onboarding stores roots, Preferred Runner, and an onboarding marker.
+- History: local unique action history supports filtering, count limits, and safe interactive replay.

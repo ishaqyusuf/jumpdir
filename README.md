@@ -18,6 +18,8 @@ jd runner set pnpm
 jd set ~/Documents/code ~/Desktop/projects
 jd ls
 jd update
+jd history
+jd history -f dev -c 10
 jd my-app
 jd my-app '?'
 jd my-app help
@@ -35,7 +37,7 @@ jd alias my-long-repo-name my-app
 `jd` and `jumpdir` are equivalent. The short command is for daily use; the full command remains available when you want the descriptive name.
 
 `jd set` saves the roots to `${JUMPDIR_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir}/roots`.
-Aliases created by `jd alias` are saved to `aliases` in the same directory, your preferred runner is saved to `runner`, and the daily update check date is saved to `update-check`.
+Aliases created by `jd alias` are saved to `aliases` in the same directory, your preferred runner is saved to `runner`, recent commands are saved to `history`, and the daily update check date is saved to `update-check`.
 
 ## Short Command
 
@@ -48,6 +50,24 @@ jd alias school-clerk sc
 ```
 
 The full `jumpdir` command remains available and behaves the same way.
+
+## Command History
+
+`jd history` shows your recent JD actions. In an interactive terminal, use Up/Down to choose an entry and Enter to run it again. Press Esc or Ctrl-C to cancel.
+
+```sh
+jd history
+jd history -f dev
+jd history --filter my-app
+jd history -c 10
+jd history --filter build --count 5
+```
+
+History is newest first, shows 20 unique commands by default, and retains the latest 200. Repeating a command moves it to the top instead of creating a duplicate. Filtering is a case-insensitive literal text search.
+
+Project jumps, script and package-manager commands, Finder opens, and VS Code opens are recorded. Setup, help, listing, update, completion, `path`, and history commands are not. When output is redirected or piped, history prints one command per line without opening the picker.
+
+`jd`, `jumpdir`, and `termcode` share the same records. With zsh integration installed, replaying a project jump from history changes the current shell directory; without shell integration, it prints the resolved path.
 
 ## Termcode Compatibility
 
@@ -196,7 +216,7 @@ JUMPDIR_INSTALL_DIR=/usr/local/bin ./install.sh
 To install from another branch or tag with curl:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.3.5 bash
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.4.0 bash
 ```
 
 For forks, pass `JUMPDIR_REPO_OWNER` and `JUMPDIR_REPO_NAME` to the `bash` command.
@@ -225,6 +245,7 @@ jd runner get
 jd runner set <bun|pnpm|npm|yarn|none>
 jd runner clear
 jd update
+jd history [-f|--filter <text>] [-c|--count <number>]
 jd alias <current-name-or-path> <new-alias>
 jd path <project>
 jd cd <project>

@@ -19,3 +19,4 @@ Track the implementation sequence.
 9. Done: Add test harness.
 10. Done: Polish installer and release docs.
 11. Done: Implement v0.2 onboarding, Preferred Runner, explicit runner override, path command, and zsh jump integration.
+12. Done: Implement v0.4 unique command history, filtering, count limits, interactive replay, and zsh-aware jump replay.
