@@ -1792,7 +1792,7 @@ load_history_matches() {
 }
 
 sort_history_matches() {
-  local index previous display record key
+  local index previous_index display record key
   local -a sort_keys
 
   index=0
@@ -1807,19 +1807,19 @@ sort_history_matches() {
     display="${HISTORY_MATCH_DISPLAYS[$index]}"
     record="${HISTORY_MATCH_RECORDS[$index]}"
     key="${sort_keys[$index]}"
-    previous=$((index - 1))
+    previous_index=$((index - 1))
 
-    while [ "$previous" -ge 0 ] &&
-      [[ "${sort_keys[$previous]}" > "$key" ]]; do
-      HISTORY_MATCH_DISPLAYS[$((previous + 1))]="${HISTORY_MATCH_DISPLAYS[$previous]}"
-      HISTORY_MATCH_RECORDS[$((previous + 1))]="${HISTORY_MATCH_RECORDS[$previous]}"
-      sort_keys[$((previous + 1))]="${sort_keys[$previous]}"
-      previous=$((previous - 1))
+    while [ "$previous_index" -ge 0 ] &&
+      [[ "${sort_keys[$previous_index]}" > "$key" ]]; do
+      HISTORY_MATCH_DISPLAYS[$((previous_index + 1))]="${HISTORY_MATCH_DISPLAYS[$previous_index]}"
+      HISTORY_MATCH_RECORDS[$((previous_index + 1))]="${HISTORY_MATCH_RECORDS[$previous_index]}"
+      sort_keys[$((previous_index + 1))]="${sort_keys[$previous_index]}"
+      previous_index=$((previous_index - 1))
     done
 
-    HISTORY_MATCH_DISPLAYS[$((previous + 1))]="$display"
-    HISTORY_MATCH_RECORDS[$((previous + 1))]="$record"
-    sort_keys[$((previous + 1))]="$key"
+    HISTORY_MATCH_DISPLAYS[$((previous_index + 1))]="$display"
+    HISTORY_MATCH_RECORDS[$((previous_index + 1))]="$record"
+    sort_keys[$((previous_index + 1))]="$key"
     index=$((index + 1))
   done
 }

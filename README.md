@@ -69,7 +69,7 @@ jd history -c 10
 jd history --filter build --count 5
 ```
 
-History is newest first, shows 20 unique commands by default, and retains the latest 200. Repeating a command moves it to the top instead of creating a duplicate. Filtering is a case-insensitive literal text search.
+History shows the 20 most recent unique commands by default in alphabetical order and retains the latest 200. Repeating a command refreshes its recency instead of creating a duplicate. Filtering is a case-insensitive literal text search.
 
 Project jumps, script and package-manager commands, Finder opens, and VS Code opens are recorded. Setup, help, listing, update, completion, `path`, and history commands are not. When output is redirected or piped, history prints one command per line without opening the picker.
 
