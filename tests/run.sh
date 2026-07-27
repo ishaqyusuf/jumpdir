@@ -442,8 +442,17 @@ assert_not_contains "$history_output" "jumpdir runner"
 assert_not_contains "$history_output" "jumpdir ls"
 assert_not_contains "$history_output" "jumpdir history"
 assert_not_contains "$history_output" "not-a-real-project"
-assert_eq "$(printf '%s\n' "$history_output" | sed -n '1p')" "jumpdir gamma"
+assert_eq "$(printf '%s\n' "$history_output" | sed -n '1p')" "jumpdir . beta"
 assert_file_contains "$TEST_CONFIG_DIR/history" "jd gamma"
+
+run_jumpdir gamma pnpm exec history-order-alpha >/dev/null
+run_jumpdir gamma pnpm exec history-order-Charlie >/dev/null
+run_jumpdir gamma pnpm exec history-order-bravo >/dev/null
+alphabetical_history_output="$(run_jumpdir history --filter history-order --count 3)"
+assert_eq "$alphabetical_history_output" \
+  "jumpdir gamma pnpm exec history-order-alpha
+jumpdir gamma pnpm exec history-order-bravo
+jumpdir gamma pnpm exec history-order-Charlie"
 
 filtered_history_output="$(run_jumpdir history --filter OPEN --count 1)"
 assert_eq "$filtered_history_output" "jumpdir open a"
@@ -621,7 +630,7 @@ run_jumpdir gamma pnpm exec replay-second >/dev/null
 history_picker_output="$TMP_DIR/history-picker-output.txt"
 run_history_picker "\033\[B\r" "$history_picker_output" -f replay- --count 2
 assert_file_contains "$history_picker_output" "Select a command"
-assert_file_contains "$JUMPDIR_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|exec replay-first"
+assert_file_contains "$JUMPDIR_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|exec replay-second"
 
 : > "$JUMPDIR_TEST_LOG"
 wrap_history_picker_output="$TMP_DIR/wrap-history-picker-output.txt"

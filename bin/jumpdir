@@ -1787,7 +1787,41 @@ load_history_matches() {
     [ "$HISTORY_MATCHED_COUNT" -ge "$HISTORY_COUNT" ] && break
   done < "$HISTORY_FILE"
 
+  sort_history_matches
   return 0
+}
+
+sort_history_matches() {
+  local index previous display record key
+  local -a sort_keys
+
+  index=0
+  while [ "$index" -lt "$HISTORY_MATCHED_COUNT" ]; do
+    sort_keys[$index]="$(printf '%s' "${HISTORY_MATCH_DISPLAYS[$index]}" |
+      LC_ALL=C tr '[:upper:]' '[:lower:]')"
+    index=$((index + 1))
+  done
+
+  index=1
+  while [ "$index" -lt "$HISTORY_MATCHED_COUNT" ]; do
+    display="${HISTORY_MATCH_DISPLAYS[$index]}"
+    record="${HISTORY_MATCH_RECORDS[$index]}"
+    key="${sort_keys[$index]}"
+    previous=$((index - 1))
+
+    while [ "$previous" -ge 0 ] &&
+      [[ "${sort_keys[$previous]}" > "$key" ]]; do
+      HISTORY_MATCH_DISPLAYS[$((previous + 1))]="${HISTORY_MATCH_DISPLAYS[$previous]}"
+      HISTORY_MATCH_RECORDS[$((previous + 1))]="${HISTORY_MATCH_RECORDS[$previous]}"
+      sort_keys[$((previous + 1))]="${sort_keys[$previous]}"
+      previous=$((previous - 1))
+    done
+
+    HISTORY_MATCH_DISPLAYS[$((previous + 1))]="$display"
+    HISTORY_MATCH_RECORDS[$((previous + 1))]="$record"
+    sort_keys[$((previous + 1))]="$key"
+    index=$((index + 1))
+  done
 }
 
 pick_history_match() {
