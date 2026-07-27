@@ -19,6 +19,8 @@ jd set ~/Documents/code ~/Desktop/projects
 jd ls
 jd update
 jd history
+jd h
+jd -h -f dev
 jd history -f dev -c 10
 jd my-app
 jd my-app '?'
@@ -55,8 +57,12 @@ The full `jumpdir` command remains available and behaves the same way.
 
 `jd history` shows your recent JD actions. In an interactive terminal, use Up/Down to choose an entry and Enter to run it again. Press Backspace to permanently delete the highlighted entry, or Esc/Ctrl-C to cancel.
 
+`jd h` and `jd -h` are short aliases for `jd history`. Help remains available as `jd --help`.
+
 ```sh
 jd history
+jd h
+jd -h
 jd history -f dev
 jd history --filter my-app
 jd history -c 10
@@ -245,7 +251,7 @@ jd runner get
 jd runner set <bun|pnpm|npm|yarn|none>
 jd runner clear
 jd update
-jd history [-f|--filter <text>] [-c|--count <number>]
+jd history|h|-h [-f|--filter <text>] [-c|--count <number>]
 jd alias <current-name-or-path> <new-alias>
 jd path <project>
 jd cd <project>

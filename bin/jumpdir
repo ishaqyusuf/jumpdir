@@ -41,7 +41,7 @@ Usage:
   $COMMAND runner set <runner|none>    Set preferred runner
   $COMMAND runner clear                Clear preferred runner
   $COMMAND update                      Check for a newer $COMMAND version
-  $COMMAND history [options]           Show and replay recent commands
+  $COMMAND history|h|-h [options]      Show and replay recent commands
   $COMMAND alias <name-or-path> <as>   Create a callable alias
   $COMMAND path <project>              Print project path
   $COMMAND cd <project>                Print project path, or cd with shell integration
@@ -313,7 +313,7 @@ has_checked_update_today() {
 
 should_skip_daily_update_check() {
   case "${1:-}" in
-    complete|history|update|init|-h|--help|-v|--version) return 0 ;;
+    complete|history|h|update|init|-h|--help|-v|--version) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -1156,7 +1156,7 @@ print_zsh_init() {
   printf '_%s() {\n' "$shell_command"
   cat <<'EOF'
   local -a commands projects scripts history_options runner_commands runner_exec_commands runner_preferences runners
-  commands=(set ls runner update history alias path cd init open . --help --version)
+  commands=(set ls runner update history h -h alias path cd init open . --help --version)
   history_options=(-f --filter -c --count)
   runner_commands=(get set clear)
   runner_exec_commands=(run install add remove update upgrade exec dlx)
@@ -1195,11 +1195,11 @@ print_zsh_init() {
       fi
       return
       ;;
-    history)
+    history|h|-h)
       compadd -a history_options
       return
       ;;
-    set|ls|update|-h|--help|-v|--version)
+    set|ls|update|--help|-v|--version)
       return
       ;;
   esac
@@ -1251,10 +1251,10 @@ EOF
   printf '%s() {\n' "$shell_command"
   cat <<'EOF'
   case "${1:-}" in
-    ""|-h|--help|-v|--version|set|ls|runner|update|complete|alias|rename|path|init|open|.)
+    ""|--help|-v|--version|set|ls|runner|update|complete|alias|rename|path|init|open|.)
       "${__jumpdir_bin[@]}" "$@"
       ;;
-    history)
+    history|h|-h)
       if [[ -t 0 && -t 2 ]]; then
         local -a __jumpdir_history_args
         local __jumpdir_history_status
@@ -1894,7 +1894,7 @@ main() {
         usage
       fi
       ;;
-    -h|--help)
+    --help)
       usage
       ;;
     -v|--version)
@@ -1917,7 +1917,7 @@ main() {
       shift
       update_command "$@"
       ;;
-    history)
+    history|h|-h)
       shift
       history_command "$@"
       ;;

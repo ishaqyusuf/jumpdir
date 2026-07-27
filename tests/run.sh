@@ -172,17 +172,19 @@ EXPECT
 }
 
 run_zsh_history_jump_picker() {
-  local output_file zsh_init start_dir
+  local output_file zsh_init start_dir history_command
   output_file="$1"
   zsh_init="$2"
   start_dir="$3"
+  history_command="${4:-history}"
 
-  JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" expect -f - "$zsh_init" "$start_dir" > "$output_file" 2>&1 <<'EXPECT'
+  JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" expect -f - "$zsh_init" "$start_dir" "$history_command" > "$output_file" 2>&1 <<'EXPECT'
 set timeout 5
 set zsh_init [lindex $argv 0]
 set start_dir [lindex $argv 1]
+set history_command [lindex $argv 2]
 
-spawn zsh -c {source "$1"; cd "$2"; jd gamma; cd "$2"; jd history -f "jd gamma" -c 1; pwd} jumpdir-history "$zsh_init" "$start_dir"
+spawn zsh -c {source "$1"; cd "$2"; jd gamma; cd "$2"; jd "$3" -f "jd gamma" -c 1; pwd} jumpdir-history "$zsh_init" "$start_dir" "$history_command"
 expect {
   "Select a command" {}
   eof {}
@@ -447,6 +449,10 @@ filtered_history_output="$(run_jumpdir history --filter OPEN --count 1)"
 assert_eq "$filtered_history_output" "jumpdir open a"
 filtered_history_output="$(run_jumpdir history -c 1 -f '.*')"
 assert_contains "$filtered_history_output" 'No jumpdir history matched ".*".'
+short_history_output="$(JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" bash "$JD" h --filter OPEN --count 1)"
+assert_eq "$short_history_output" "jd open a"
+dash_history_output="$(JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" bash "$JD" -h -f OPEN -c 1)"
+assert_eq "$dash_history_output" "jd open a"
 
 set +e
 invalid_history_output="$(run_jumpdir history --count 0 2>&1)"
@@ -746,6 +752,7 @@ assert_contains "$init_output" "\"\${__jumpdir_bin[@]}\" complete projects"
 assert_contains "$init_output" "\"\${__jumpdir_bin[@]}\" complete scripts"
 assert_contains "$init_output" "\"\${__jumpdir_bin[@]}\" path"
 assert_contains "$init_output" "history_options="
+assert_contains "$init_output" "history|h|-h)"
 assert_contains "$init_output" "JUMPDIR_HISTORY_EMIT0=1"
 assert_contains "$init_output" "JUMPDIR_HISTORY_RECORD_ONLY=1"
 assert_contains "$init_output" "cd)"
@@ -770,7 +777,7 @@ if command -v zsh >/dev/null 2>&1; then
 
   zsh_history_jump_output="$TMP_DIR/zsh-history-jump-output.txt"
   set +e
-  run_zsh_history_jump_picker "$zsh_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha"
+  run_zsh_history_jump_picker "$zsh_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha" history
   zsh_history_jump_status="$?"
   set -e
   if [ "$zsh_history_jump_status" -ne 0 ]; then
@@ -778,6 +785,15 @@ if command -v zsh >/dev/null 2>&1; then
   fi
   assert_file_contains "$zsh_history_jump_output" "Select a command"
   assert_file_contains "$zsh_history_jump_output" "$TMP_DIR/root-b/gamma"
+  assert_eq "$(tr -d '\r' < "$zsh_history_jump_output" | tail -n 1)" "$TMP_DIR/root-b/gamma"
+
+  zsh_short_history_jump_output="$TMP_DIR/zsh-short-history-jump-output.txt"
+  run_zsh_history_jump_picker "$zsh_short_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha" h
+  assert_eq "$(tr -d '\r' < "$zsh_short_history_jump_output" | tail -n 1)" "$TMP_DIR/root-b/gamma"
+
+  zsh_dash_history_jump_output="$TMP_DIR/zsh-dash-history-jump-output.txt"
+  run_zsh_history_jump_picker "$zsh_dash_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha" -h
+  assert_eq "$(tr -d '\r' < "$zsh_dash_history_jump_output" | tail -n 1)" "$TMP_DIR/root-b/gamma"
 
   : > "$JUMPDIR_TEST_LOG"
   zsh_history_action_output="$TMP_DIR/zsh-history-action-output.txt"
