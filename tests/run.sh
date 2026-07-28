@@ -219,6 +219,68 @@ exit [lindex $result 3]
 EXPECT
 }
 
+run_zsh_history_paste_picker() {
+  local output_file zsh_init test_log injection_file
+  output_file="$1"
+  zsh_init="$2"
+  test_log="$3"
+  injection_file="$4"
+
+  JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" JUMPDIR_TEST_LOG="$test_log" expect -f - \
+    "$zsh_init" "$test_log" "$injection_file" > "$output_file" 2>&1 <<'EXPECT'
+set timeout 5
+set zsh_init [lindex $argv 0]
+set test_log [lindex $argv 1]
+set injection_file [lindex $argv 2]
+
+spawn zsh -f
+expect -re {% }
+send -- "source $zsh_init\r"
+expect -re {% }
+send -- "jd history -f replay-safe -c 1\r"
+expect {
+  "Select a command" {}
+  eof {}
+  timeout { exit 124 }
+}
+expect {
+  -re {> [^\r\n]+} {}
+  eof {}
+  timeout { exit 124 }
+}
+send -- "\t"
+expect {
+  -re {% } {}
+  eof {}
+  timeout { exit 124 }
+}
+expect {
+  -re {history-injection} {}
+  eof {}
+  timeout { exit 124 }
+}
+if {[file size $test_log] != 0} {
+  puts "history command ran before Enter"
+  exit 1
+}
+if {[file exists $injection_file]} {
+  puts "history command injected shell syntax before Enter"
+  exit 1
+}
+puts "history command is pending"
+send -- "\r"
+expect {
+  -re {% } {}
+  eof {}
+  timeout { exit 124 }
+}
+send -- "exit\r"
+expect eof
+set result [wait]
+exit [lindex $result 3]
+EXPECT
+}
+
 export JUMPDIR_TEST_LOG="$TMP_DIR/commands.log"
 mkdir -p "$TMP_DIR/root-a" "$TMP_DIR/root-b" "$TMP_DIR/stubs"
 : > "$JUMPDIR_TEST_LOG"
@@ -661,10 +723,22 @@ safe_history_picker_output="$TMP_DIR/safe-history-picker-output.txt"
 run_history_picker "\r" "$safe_history_picker_output" -f replay-safe -c 1
 assert_file_contains "$JUMPDIR_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|exec replay-safe safe;touch $injection_file"
 [ ! -e "$injection_file" ] || fail "history replay executed shell syntax from an argument"
+assert_not_contains "$(sed -n '1,160p' "$safe_history_picker_output")" "Tab to paste"
 output="$(JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" bash "$JD" history -f replay-safe -c 1)"
 assert_contains "$output" "jd gamma pnpm exec replay-safe"
 output="$(JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" bash "$TERMCODE" history -f replay-safe -c 1)"
 assert_contains "$output" "termcode gamma pnpm exec replay-safe"
+
+: > "$JUMPDIR_TEST_LOG"
+unsupported_tab_history_output="$TMP_DIR/unsupported-tab-history-output.txt"
+set +e
+run_history_picker "\t\033" "$unsupported_tab_history_output" -f replay-safe -c 1
+unsupported_tab_history_status="$?"
+set -e
+[ "$unsupported_tab_history_status" -eq 130 ] ||
+  fail "expected unsupported history Tab to remain in the picker"
+assert_not_contains "$(sed -n '1,160p' "$unsupported_tab_history_output")" "Tab to paste"
+assert_eq "$(wc -l < "$JUMPDIR_TEST_LOG" | tr -d ' ')" "0"
 
 : > "$JUMPDIR_TEST_LOG"
 cancel_history_picker_output="$TMP_DIR/cancel-history-picker-output.txt"
@@ -762,7 +836,9 @@ assert_contains "$init_output" "\"\${__jumpdir_bin[@]}\" complete scripts"
 assert_contains "$init_output" "\"\${__jumpdir_bin[@]}\" path"
 assert_contains "$init_output" "history_options="
 assert_contains "$init_output" "history|h|-h)"
+assert_contains "$init_output" "JUMPDIR_HISTORY_PROTOCOL=2"
 assert_contains "$init_output" "JUMPDIR_HISTORY_EMIT0=1"
+assert_contains "$init_output" "print -rz --"
 assert_contains "$init_output" "JUMPDIR_HISTORY_RECORD_ONLY=1"
 assert_contains "$init_output" "cd)"
 printf '%s\n' "$init_output" > "$TMP_DIR/jumpdir.zsh"
@@ -809,6 +885,25 @@ if command -v zsh >/dev/null 2>&1; then
   run_zsh_history_action_picker "$zsh_history_action_output" "$TMP_DIR/jd.zsh"
   assert_file_contains "$zsh_history_action_output" "Select a command"
   assert_file_contains "$JUMPDIR_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|exec replay-safe safe;touch $injection_file"
+
+  : > "$JUMPDIR_TEST_LOG"
+  zsh_history_paste_output="$TMP_DIR/zsh-history-paste-output.txt"
+  set +e
+  run_zsh_history_paste_picker \
+    "$zsh_history_paste_output" "$TMP_DIR/jd.zsh" "$JUMPDIR_TEST_LOG" "$injection_file"
+  zsh_history_paste_status="$?"
+  set -e
+  if [ "$zsh_history_paste_status" -ne 0 ]; then
+    fail "expected zsh history paste picker to succeed"$'\n'"$(sed -n '1,200p' "$zsh_history_paste_output")"
+  fi
+  assert_file_contains "$zsh_history_paste_output" "Tab to paste"
+  assert_file_contains "$zsh_history_paste_output" "history command is pending"
+  assert_file_contains "$zsh_history_paste_output" 'safe\;touch'
+  if ! grep -Fq "pnpm|$TMP_DIR/root-b/gamma|exec replay-safe safe;touch $injection_file" \
+    "$JUMPDIR_TEST_LOG"; then
+    fail "expected pasted history command to run after Enter"$'\n'"log: $(sed -n '1,20p' "$JUMPDIR_TEST_LOG")"$'\n'"$(sed -n '1,240p' "$zsh_history_paste_output")"
+  fi
+  [ ! -e "$injection_file" ] || fail "history paste executed shell syntax from an argument"
 fi
 
 compat_init_output="$(JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" bash "$TERMCODE" init zsh)"

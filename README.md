@@ -55,7 +55,7 @@ The full `jumpdir` command remains available and behaves the same way.
 
 ## Command History
 
-`jd history` shows your recent JD actions in alphabetical order. In an interactive terminal, use Up/Down to choose an entry and Enter to run it again. Press Backspace to permanently delete the highlighted entry, or Esc/Ctrl-C to cancel.
+`jd history` shows your recent JD actions in alphabetical order. In an interactive terminal, use Up/Down to choose an entry and Enter to run it again. With zsh integration installed, press Tab to paste the highlighted command into the prompt without running it, then edit it or press Enter. Press Backspace to permanently delete the highlighted entry, or Esc/Ctrl-C to cancel.
 
 `jd h` and `jd -h` are short aliases for `jd history`. Help remains available as `jd --help`.
 
@@ -73,7 +73,7 @@ History shows the 20 most recent unique commands by default in alphabetical orde
 
 Project jumps, script and package-manager commands, Finder opens, and VS Code opens are recorded. Setup, help, listing, update, completion, `path`, and history commands are not. When output is redirected or piped, history prints one command per line without opening the picker.
 
-`jd`, `jumpdir`, and `termcode` share the same records. With zsh integration installed, replaying a project jump from history changes the current shell directory; without shell integration, it prints the resolved path.
+`jd`, `jumpdir`, and `termcode` share the same records. With zsh integration installed, replaying a project jump from history changes the current shell directory and Tab can paste any highlighted history entry into the prompt. Without shell integration, project jumps print the resolved path and Tab is not enabled in the history picker.
 
 ## Termcode Compatibility
 
