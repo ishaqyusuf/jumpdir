@@ -172,47 +172,56 @@ EXPECT
 }
 
 run_zsh_history_jump_picker() {
-  local output_file zsh_init start_dir history_command
+  local output_file zsh_init start_dir target_dir history_command
   output_file="$1"
   zsh_init="$2"
   start_dir="$3"
-  history_command="${4:-history}"
+  target_dir="$4"
+  history_command="${5:-history}"
 
-  JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" expect -f - "$zsh_init" "$start_dir" "$history_command" > "$output_file" 2>&1 <<'EXPECT'
+  JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" expect -f - \
+    "$zsh_init" "$start_dir" "$target_dir" "$history_command" > "$output_file" 2>&1 <<'EXPECT'
 set timeout 5
 set zsh_init [lindex $argv 0]
 set start_dir [lindex $argv 1]
-set history_command [lindex $argv 2]
+set target_dir [lindex $argv 2]
+set history_command [lindex $argv 3]
 
-spawn zsh -c {source "$1"; cd "$2"; jd gamma; cd "$2"; jd "$3" -f "jd gamma" -c 1; pwd} jumpdir-history "$zsh_init" "$start_dir" "$history_command"
+spawn zsh -f
+expect -re {% }
+send -- "source [list $zsh_init]\r"
+expect -re {% }
+send -- "cd [list $start_dir]\r"
+expect -re {% }
+send -- "jd $history_command -f 'jd gamma' -c 1\r"
 expect {
   "Select a command" {}
   eof {}
   timeout { exit 124 }
 }
-send -- "\r"
-expect eof
-set result [wait]
-exit [lindex $result 3]
-EXPECT
-}
-
-run_zsh_history_action_picker() {
-  local output_file zsh_init
-  output_file="$1"
-  zsh_init="$2"
-
-  JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" JUMPDIR_TEST_LOG="$JUMPDIR_TEST_LOG" expect -f - "$zsh_init" > "$output_file" 2>&1 <<'EXPECT'
-set timeout 5
-set zsh_init [lindex $argv 0]
-
-spawn zsh -c {source "$1"; jd history -f replay-safe -c 1} jumpdir-history "$zsh_init"
 expect {
-  "Select a command" {}
+  -re {> [^\r\n]+} {}
   eof {}
   timeout { exit 124 }
 }
 send -- "\r"
+expect {
+  -re {% } {}
+  eof {}
+  timeout { exit 124 }
+}
+expect {
+  -re {jd gamma} {}
+  eof {}
+  timeout { exit 124 }
+}
+puts "history command is pending"
+send -- "\r"
+expect -re {% }
+send -- "pwd\r"
+expect -exact "$target_dir\r\n"
+expect -re {% }
+send -- "exit\r"
 expect eof
 set result [wait]
 exit [lindex $result 3]
@@ -282,7 +291,7 @@ expect {
   eof {}
   timeout { exit 124 }
 }
-send -- "\t"
+send -- "\r"
 expect {
   -re {% } {}
   eof {}
@@ -356,22 +365,22 @@ assert_not_contains "$output" "Short command:"
 assert_not_contains "$output" "jumpdir alias <name-or-path> <as>"
 
 output="$(JUMPDIR_SOURCE_URL="file://$JUMPDIR" bash "$JUMPDIR" update)"
-assert_contains "$output" "Current version: 0.4.1"
-assert_contains "$output" "Latest version:  0.4.1"
+assert_contains "$output" "Current version: 0.4.2"
+assert_contains "$output" "Latest version:  0.4.2"
 assert_contains "$output" "jumpdir is up to date."
 
 CHANGED_SAME_VERSION_JUMPDIR="$TMP_DIR/changed-same-version-jumpdir"
-printf '#!/usr/bin/env bash\nVERSION="0.4.1"\nprintf "changed build\\n"\n' > "$CHANGED_SAME_VERSION_JUMPDIR"
+printf '#!/usr/bin/env bash\nVERSION="0.4.2"\nprintf "changed build\\n"\n' > "$CHANGED_SAME_VERSION_JUMPDIR"
 output="$(JUMPDIR_SOURCE_URL="file://$CHANGED_SAME_VERSION_JUMPDIR" bash "$JUMPDIR" update)"
-assert_contains "$output" "Current version: 0.4.1"
-assert_contains "$output" "Latest version:  0.4.1"
+assert_contains "$output" "Current version: 0.4.2"
+assert_contains "$output" "Latest version:  0.4.2"
 assert_contains "$output" "An updated jumpdir build is available."
 assert_not_contains "$output" "jumpdir is up to date."
 
 NEWER_JUMPDIR="$TMP_DIR/newer-jumpdir"
 printf '#!/usr/bin/env bash\nVERSION="9.9.9"\n' > "$NEWER_JUMPDIR"
 output="$(JUMPDIR_SOURCE_URL="file://$NEWER_JUMPDIR" bash "$JUMPDIR" update)"
-assert_contains "$output" "Current version: 0.4.1"
+assert_contains "$output" "Current version: 0.4.2"
 assert_contains "$output" "Latest version:  9.9.9"
 assert_contains "$output" "A newer jumpdir version is available."
 assert_contains "$output" "curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | bash"
@@ -477,7 +486,7 @@ update_prompt_output="$(
     env JUMPDIR_FORCE_UPDATE_CHECK=1 JUMPDIR_SOURCE_URL="file://$NEWER_JUMPDIR" JUMPDIR_CONFIG_DIR="$TEST_CONFIG_DIR" bash "$JUMPDIR" ls 2>&1
 )"
 assert_contains "$update_prompt_output" "jumpdir update available."
-assert_contains "$update_prompt_output" "Current version: 0.4.1"
+assert_contains "$update_prompt_output" "Current version: 0.4.2"
 assert_contains "$update_prompt_output" "Latest version:  9.9.9"
 assert_contains "$update_prompt_output" "Update now? [Y/n]"
 assert_contains "$update_prompt_output" "alpha"
@@ -904,7 +913,8 @@ if command -v zsh >/dev/null 2>&1; then
 
   zsh_history_jump_output="$TMP_DIR/zsh-history-jump-output.txt"
   set +e
-  run_zsh_history_jump_picker "$zsh_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha" history
+  run_zsh_history_jump_picker \
+    "$zsh_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha" "$TMP_DIR/root-b/gamma" history
   zsh_history_jump_status="$?"
   set -e
   if [ "$zsh_history_jump_status" -ne 0 ]; then
@@ -912,21 +922,18 @@ if command -v zsh >/dev/null 2>&1; then
   fi
   assert_file_contains "$zsh_history_jump_output" "Select a command"
   assert_file_contains "$zsh_history_jump_output" "$TMP_DIR/root-b/gamma"
-  assert_eq "$(tr -d '\r' < "$zsh_history_jump_output" | tail -n 1)" "$TMP_DIR/root-b/gamma"
+  assert_file_contains "$zsh_history_jump_output" "Enter to paste"
+  assert_file_contains "$zsh_history_jump_output" "history command is pending"
 
   zsh_short_history_jump_output="$TMP_DIR/zsh-short-history-jump-output.txt"
-  run_zsh_history_jump_picker "$zsh_short_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha" h
-  assert_eq "$(tr -d '\r' < "$zsh_short_history_jump_output" | tail -n 1)" "$TMP_DIR/root-b/gamma"
+  run_zsh_history_jump_picker \
+    "$zsh_short_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha" "$TMP_DIR/root-b/gamma" h
+  assert_file_contains "$zsh_short_history_jump_output" "history command is pending"
 
   zsh_dash_history_jump_output="$TMP_DIR/zsh-dash-history-jump-output.txt"
-  run_zsh_history_jump_picker "$zsh_dash_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha" -h
-  assert_eq "$(tr -d '\r' < "$zsh_dash_history_jump_output" | tail -n 1)" "$TMP_DIR/root-b/gamma"
-
-  : > "$JUMPDIR_TEST_LOG"
-  zsh_history_action_output="$TMP_DIR/zsh-history-action-output.txt"
-  run_zsh_history_action_picker "$zsh_history_action_output" "$TMP_DIR/jd.zsh"
-  assert_file_contains "$zsh_history_action_output" "Select a command"
-  assert_file_contains "$JUMPDIR_TEST_LOG" "pnpm|$TMP_DIR/root-b/gamma|exec replay-safe safe;touch $injection_file"
+  run_zsh_history_jump_picker \
+    "$zsh_dash_history_jump_output" "$TMP_DIR/jd.zsh" "$TMP_DIR/root-a/alpha" "$TMP_DIR/root-b/gamma" -h
+  assert_file_contains "$zsh_dash_history_jump_output" "history command is pending"
 
   : > "$JUMPDIR_TEST_LOG"
   zsh_legacy_history_action_output="$TMP_DIR/zsh-legacy-history-action-output.txt"
@@ -945,7 +952,7 @@ if command -v zsh >/dev/null 2>&1; then
   if [ "$zsh_history_paste_status" -ne 0 ]; then
     fail "expected zsh history paste picker to succeed"$'\n'"$(sed -n '1,200p' "$zsh_history_paste_output")"
   fi
-  assert_file_contains "$zsh_history_paste_output" "Tab to paste"
+  assert_file_contains "$zsh_history_paste_output" "Enter to paste"
   assert_file_contains "$zsh_history_paste_output" "history command is pending"
   assert_file_contains "$zsh_history_paste_output" 'safe\;touch'
   if ! grep -Fq "pnpm|$TMP_DIR/root-b/gamma|exec replay-safe safe;touch $injection_file|argc=3" \
@@ -974,9 +981,9 @@ output="$(JUMPDIR_INSTALL_DIR="$TMP_DIR/install-local" bash "$ROOT_DIR/install.s
 assert_contains "$output" "Installed jumpdir to $TMP_DIR/install-local/jumpdir"
 assert_contains "$output" "Installed jd shortcut command to $TMP_DIR/install-local/jd"
 assert_contains "$output" "Installed termcode compatibility command to $TMP_DIR/install-local/termcode"
-assert_contains "$("$TMP_DIR/install-local/jumpdir" --version)" "jumpdir 0.4.1"
-assert_contains "$("$TMP_DIR/install-local/jd" --version)" "jd 0.4.1"
-assert_contains "$("$TMP_DIR/install-local/termcode" --version)" "termcode 0.4.1"
+assert_contains "$("$TMP_DIR/install-local/jumpdir" --version)" "jumpdir 0.4.2"
+assert_contains "$("$TMP_DIR/install-local/jd" --version)" "jd 0.4.2"
+assert_contains "$("$TMP_DIR/install-local/termcode" --version)" "termcode 0.4.2"
 
 cp "$ROOT_DIR/install.sh" "$TMP_DIR/remote-install.sh"
 output="$(JUMPDIR_INSTALL_DIR="$TMP_DIR/install-remote" JUMPDIR_SOURCE_URL="file://$JUMPDIR" bash "$TMP_DIR/remote-install.sh")"
@@ -984,18 +991,18 @@ assert_contains "$output" "Downloading jumpdir from file://$JUMPDIR"
 assert_contains "$output" "Installed jumpdir to $TMP_DIR/install-remote/jumpdir"
 assert_contains "$output" "Installed jd shortcut command to $TMP_DIR/install-remote/jd"
 assert_contains "$output" "Installed termcode compatibility command to $TMP_DIR/install-remote/termcode"
-assert_contains "$("$TMP_DIR/install-remote/jumpdir" --version)" "jumpdir 0.4.1"
-assert_contains "$("$TMP_DIR/install-remote/jd" --version)" "jd 0.4.1"
-assert_contains "$("$TMP_DIR/install-remote/termcode" --version)" "termcode 0.4.1"
+assert_contains "$("$TMP_DIR/install-remote/jumpdir" --version)" "jumpdir 0.4.2"
+assert_contains "$("$TMP_DIR/install-remote/jd" --version)" "jd 0.4.2"
+assert_contains "$("$TMP_DIR/install-remote/termcode" --version)" "termcode 0.4.2"
 
 output="$(JUMPDIR_INSTALL_DIR="$TMP_DIR/install-piped" JUMPDIR_SOURCE_URL="file://$JUMPDIR" bash < "$ROOT_DIR/install.sh")"
 assert_contains "$output" "Downloading jumpdir from file://$JUMPDIR"
 assert_contains "$output" "Installed jumpdir to $TMP_DIR/install-piped/jumpdir"
 assert_contains "$output" "Installed jd shortcut command to $TMP_DIR/install-piped/jd"
 assert_contains "$output" "Installed termcode compatibility command to $TMP_DIR/install-piped/termcode"
-assert_contains "$("$TMP_DIR/install-piped/jumpdir" --version)" "jumpdir 0.4.1"
-assert_contains "$("$TMP_DIR/install-piped/jd" --version)" "jd 0.4.1"
-assert_contains "$("$TMP_DIR/install-piped/termcode" --version)" "termcode 0.4.1"
+assert_contains "$("$TMP_DIR/install-piped/jumpdir" --version)" "jumpdir 0.4.2"
+assert_contains "$("$TMP_DIR/install-piped/jd" --version)" "jd 0.4.2"
+assert_contains "$("$TMP_DIR/install-piped/termcode" --version)" "termcode 0.4.2"
 
 mkdir -p "$TMP_DIR/readonly"
 chmod 555 "$TMP_DIR/readonly"
