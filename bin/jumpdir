@@ -1299,6 +1299,8 @@ EOF
             print -rz -- "$__jumpdir_history_line"
             ;;
           *)
+            printf '%s: unsupported history selection action: %s\n' \
+              "${funcstack[1]:-jumpdir}" "$__jumpdir_history_action" >&2
             return 70
             ;;
         esac
