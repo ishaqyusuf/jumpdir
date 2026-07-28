@@ -229,10 +229,14 @@ set timeout 5
 set zsh_init [lindex $argv 0]
 
 spawn zsh -c {
-  source "$1"
+  source "$1" || exit
   legacy_history_replay() {
     local -a history_args
+    local history_status
     history_args=("${(@0)$(JUMPDIR_HISTORY_EMIT0=1 "${__jumpdir_bin[@]}" history -f replay-safe -c 1)}")
+    history_status="$?"
+    [ "$history_status" -eq 0 ] || return "$history_status"
+    [ -n "${history_args[1]:-}" ] || return 0
     jd "${history_args[@]}"
   }
   legacy_history_replay
