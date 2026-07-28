@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.4.0"
+VERSION="0.4.1"
 COMMAND="${JUMPDIR_COMMAND_NAME:-${TERMCODE_COMMAND_NAME:-$(basename "$0")}}"
 DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/jumpdir"
 LEGACY_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/termcode"
@@ -236,17 +236,29 @@ runner_command() {
   esac
 }
 
-fetch_latest_version() {
-  local source version
+fetch_latest_source() {
   command -v curl >/dev/null 2>&1 || die "curl is required to check for updates"
 
-  if ! source="$(curl -fsSL "$SOURCE_URL")"; then
+  if ! curl -fsSL "$SOURCE_URL"; then
     die "could not fetch latest version from $SOURCE_URL"
   fi
+}
 
+source_version() {
+  local source version
+  source="$1"
   version="$(printf '%s\n' "$source" | sed -n 's/^VERSION="\([^"]*\)".*/\1/p' | sed -n '1p')"
   [ -n "$version" ] || die "could not read latest version from $SOURCE_URL"
   printf '%s\n' "$version"
+}
+
+source_matches_current_binary() {
+  local source current_path current_source
+  source="$1"
+  current_path="$(binary_path)"
+  [ -f "$current_path" ] || return 1
+  current_source="$(cat "$current_path")"
+  [ "$source" = "$current_source" ]
 }
 
 version_is_newer() {
@@ -279,17 +291,35 @@ version_is_newer() {
   '
 }
 
+update_is_available() {
+  local source latest_version
+  source="$1"
+  latest_version="$2"
+
+  if version_is_newer "$latest_version" "$VERSION"; then
+    return 0
+  fi
+
+  [ "$latest_version" = "$VERSION" ] || return 1
+  ! source_matches_current_binary "$source"
+}
+
 update_command() {
   [ "$#" -eq 0 ] || usage_error "update does not accept arguments"
 
-  local latest_version
-  latest_version="$(fetch_latest_version)"
+  local latest_source latest_version
+  latest_source="$(fetch_latest_source)"
+  latest_version="$(source_version "$latest_source")"
 
   printf 'Current version: %s\n' "$VERSION"
   printf 'Latest version:  %s\n' "$latest_version"
 
   if version_is_newer "$latest_version" "$VERSION"; then
     printf '\nA newer %s version is available.\n' "$COMMAND"
+    printf 'Update with:\n'
+    printf '  curl -fsSL %s | bash\n' "$INSTALLER_URL"
+  elif update_is_available "$latest_source" "$latest_version"; then
+    printf '\nAn updated %s build is available.\n' "$COMMAND"
     printf 'Update with:\n'
     printf '  curl -fsSL %s | bash\n' "$INSTALLER_URL"
   else
@@ -335,14 +365,18 @@ daily_update_check() {
   can_prompt_for_update || return 0
   has_checked_update_today && return 0
 
-  local latest_version answer
+  local latest_source latest_version answer
   mark_update_checked
 
-  if ! latest_version="$(fetch_latest_version 2>/dev/null)"; then
+  if ! latest_source="$(fetch_latest_source 2>/dev/null)"; then
     return 0
   fi
 
-  if ! version_is_newer "$latest_version" "$VERSION"; then
+  if ! latest_version="$(source_version "$latest_source" 2>/dev/null)"; then
+    return 0
+  fi
+
+  if ! update_is_available "$latest_source" "$latest_version"; then
     return 0
   fi
 

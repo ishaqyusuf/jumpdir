@@ -24,7 +24,7 @@ Track the main CLI feature.
 - `jumpdir alias <name-or-path> <alias>` stores an alias for a resolved project path.
 - `jumpdir open <project>` opens Finder, and `jumpdir . <project>` opens VS Code.
 - `jumpdir runner get/set/clear` manages the Preferred Runner.
-- `jumpdir update` checks whether a newer published version is available.
+- `jumpdir update` checks whether a newer published version or a changed same-version build is available.
 - `jumpdir history` (also `jumpdir h` and `jumpdir -h`) lists or interactively replays recent unique action commands in alphabetical order, with `-f`/`--filter` and `-c`/`--count` options; Enter replays, zsh-integrated Tab pastes into the prompt without running, and Backspace deletes the highlighted entry. Help uses `--help`.
 - History is shared across `jd`, `jumpdir`, and `termcode`, retains 200 entries, and preserves real zsh directory jumps during replay.
 - Interactive command startup checks for updates at most once per day and prompts before installing.

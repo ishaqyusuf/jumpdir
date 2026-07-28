@@ -222,7 +222,7 @@ JUMPDIR_INSTALL_DIR=/usr/local/bin ./install.sh
 To install from another branch or tag with curl:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.4.0 bash
+curl -fsSL https://raw.githubusercontent.com/ishaqyusuf/jumpdir/main/install.sh | JUMPDIR_REF=v0.4.1 bash
 ```
 
 For forks, pass `JUMPDIR_REPO_OWNER` and `JUMPDIR_REPO_NAME` to the `bash` command.

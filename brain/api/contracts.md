@@ -12,7 +12,7 @@ Define user-visible command contracts.
 - `alias` creates aliases only.
 - duplicate names fail until resolved with an alias.
 - `runner get/set/clear` manages the Preferred Runner.
-- `update` checks the published `bin/jumpdir` version and reports whether a newer version is available.
+- `update` checks the published `bin/jumpdir` version and content and reports whether a newer version or changed same-version build is available.
 - interactive command startup checks for a newer version at most once daily, prompts `Update now? [Y/n]`, and continues the original command when declined.
 - `path <project>` prints a single resolved project path.
 - `cd <project>` prints a single resolved project path unless shell integration wraps it.
