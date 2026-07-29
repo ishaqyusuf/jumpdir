@@ -1911,7 +1911,7 @@ pick_history_match() {
   while true; do
     printf 'Select a command:\n' >&2
     if [ "$paste_enabled" = "1" ]; then
-      printf 'Use Up/Down, Enter to paste, Backspace to delete, Esc or Ctrl-C to cancel. Tab also pastes.\n' >&2
+      printf 'Use Up/Down, Backspace to delete, Esc or Ctrl-C to cancel.\n' >&2
     else
       printf 'Use Up/Down, Enter to run, Backspace to delete, Esc or Ctrl-C to cancel.\n' >&2
     fi

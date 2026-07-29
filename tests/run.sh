@@ -922,7 +922,8 @@ if command -v zsh >/dev/null 2>&1; then
   fi
   assert_file_contains "$zsh_history_jump_output" "Select a command"
   assert_file_contains "$zsh_history_jump_output" "$TMP_DIR/root-b/gamma"
-  assert_file_contains "$zsh_history_jump_output" "Enter to paste"
+  assert_not_contains "$(sed -n '1,160p' "$zsh_history_jump_output")" "Enter to paste"
+  assert_not_contains "$(sed -n '1,160p' "$zsh_history_jump_output")" "Tab also pastes"
   assert_file_contains "$zsh_history_jump_output" "history command is pending"
 
   zsh_short_history_jump_output="$TMP_DIR/zsh-short-history-jump-output.txt"
@@ -952,7 +953,8 @@ if command -v zsh >/dev/null 2>&1; then
   if [ "$zsh_history_paste_status" -ne 0 ]; then
     fail "expected zsh history paste picker to succeed"$'\n'"$(sed -n '1,200p' "$zsh_history_paste_output")"
   fi
-  assert_file_contains "$zsh_history_paste_output" "Enter to paste"
+  assert_not_contains "$(sed -n '1,200p' "$zsh_history_paste_output")" "Enter to paste"
+  assert_not_contains "$(sed -n '1,200p' "$zsh_history_paste_output")" "Tab also pastes"
   assert_file_contains "$zsh_history_paste_output" "history command is pending"
   assert_file_contains "$zsh_history_paste_output" 'safe\;touch'
   if ! grep -Fq "pnpm|$TMP_DIR/root-b/gamma|exec replay-safe safe;touch $injection_file|argc=3" \
